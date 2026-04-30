@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import urllib.parse
+from datetime import datetime
 
 # Page Setup
 st.set_page_config(page_title="Smart Access Pro", layout="centered")
 
-# Custom CSS for UI Design
+# Custom CSS for UI
 st.markdown("""
     <style>
     .main { background-color: #f0f2f6; }
@@ -14,7 +15,7 @@ st.markdown("""
         width: 100%;
         border-radius: 10px;
         height: 3em;
-        background-color: #007bff;
+        background-color: #28a745;
         color: white;
         font-weight: bold;
     }
@@ -22,24 +23,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Database logic
 def get_connection():
-    return sqlite3.connect("smart_management_v2.db", check_same_thread=False)
+    return sqlite3.connect("smart_management_v4.db", check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # පරණ error එක මගහැරීමට අලුත් table structure එකක් හදමු
     cursor.execute('''CREATE TABLE IF NOT EXISTS students 
                       (name TEXT, school TEXT, grade TEXT, whatsapp TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS payments 
-                      (student_name TEXT, grade TEXT, amount TEXT, date TEXT)''')
+                      (student_name TEXT, grade TEXT, month TEXT, amount TEXT, date TEXT)''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# Login
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
@@ -59,7 +57,6 @@ else:
 
     if choice == "Dashboard":
         st.title("🚀 Dashboard")
-        # ඔයාට අවශ්‍ය පරිදි වෙනස් කළා
         st.info("Welcome to Smart Class") 
         
     elif choice == "New Registration":
@@ -77,40 +74,56 @@ else:
     elif choice == "Student Payment":
         st.title("💰 Payment Gateway")
         conn = get_connection()
-        # ශිෂ්‍යයන්ගේ නම සහ ශ්‍රේණිය දත්ත ගබඩාවෙන් ගනිමු
         students_df = pd.read_sql("SELECT name, grade, whatsapp FROM students", conn)
         
         if not students_df.empty:
-            # 1. Student Name තෝරන්න
             s_name = st.selectbox("Select Student Name", students_df['name'])
-            
-            # තෝරාගත් ශිෂ්‍යයාට අදාළ Grade එක සොයාගනිමු
             selected_student_info = students_df[students_df['name'] == s_name]
             s_grade = selected_student_info['grade'].values[0]
             student_wa = selected_student_info['whatsapp'].values[0]
 
-            # 2. Grade එක පෙන්වමු (මෙය වෙනස් කළ නොහැකි ලෙස පෙන්වයි)
             st.text_input("Grade", value=s_grade, disabled=True)
-            
-            # 3. Amount එක ඇතුළත් කරන්න
+            months = ["January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November", "December"]
+            selected_month = st.selectbox("Select Month", months)
             amt = st.text_input("Amount (Rs.)")
             
-            if st.button("Save & Send WhatsApp"):
+            if st.button("Save & Send Official Receipt"):
                 if amt:
-                    conn.execute("INSERT INTO payments (student_name, grade, amount, date) VALUES (?,?,?,?)", 
-                                 (s_name, s_grade, amt, "Today"))
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", 
+                                 (s_name, s_grade, selected_month, amt, today))
                     conn.commit()
-                    st.success("Payment Saved!")
                     
-                    # WhatsApp Message එක සකස් කිරීම
-                    msg = f"Hello {s_name} (Grade {s_grade}), Your payment of Rs.{amt} has been received. Thank you! - Smart Class"
-                    encoded_msg = urllib.parse.quote(msg)
+                    # --- Official WhatsApp Message Design ---
+                    receipt_msg = (
+                        f"🎓 *SMART CLASS - Official Receipt* 🎓\n"
+                        f"-----------------------------------\n"
+                        f"👤 *Student:* {s_name}\n"
+                        f"📚 *Grade:* {s_grade}\n"
+                        f"🗓️ *Month:* {selected_month}\n"
+                        f"💰 *Amount:* Rs. {amt}.00\n"
+                        f"📅 *Date:* {today}\n"
+                        f"✅ *Status:* Payment Received\n"
+                        f"-----------------------------------\n"
+                        f"*Thank you for your payment!*"
+                    )
+                    
+                    encoded_msg = urllib.parse.quote(receipt_msg)
                     wa_url = f"https://wa.me/{student_wa}?text={encoded_msg}"
-                    st.markdown(f'[👉 මෙතනින් WhatsApp පණිවිඩය යවන්න]({wa_url})', unsafe_allow_html=True)
+                    
+                    st.success("Payment Saved Successfully!")
+                    st.markdown(f'''
+                        <a href="{wa_url}" target="_blank">
+                            <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%;">
+                                📲 Send Official WhatsApp Receipt
+                            </button>
+                        </a>
+                        ''', unsafe_allow_html=True)
                 else:
-                    st.warning("කරුණාකර මුදල (Amount) ඇතුළත් කරන්න.")
+                    st.warning("Please enter the amount.")
         else:
-            st.warning("මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
+            st.warning("No students found. Register a student first.")
 
     elif choice == "View Data":
         st.title("📊 Records")
