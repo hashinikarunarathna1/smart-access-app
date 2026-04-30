@@ -98,7 +98,7 @@ if not st.session_state['logged_in']:
         user = st.text_input("Username")
         pw = st.text_input("Password", type="password")
         if st.button("Login"):
-            if user == "admin" and pw == "1234":
+            if user == "admin" and pw == "007722":
                 st.session_state['logged_in'] = True
                 st.rerun()
 else:
