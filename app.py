@@ -61,15 +61,46 @@ else:
 
     conn = get_connection()
 
-    # --- DASHBOARD ---
+    # --- DASHBOARD (NEW REVENUE UPDATES) ---
     if choice == "🚀 Dashboard":
         st.markdown("<h1 style='color: #1a73e8;'>Overview</h1>", unsafe_allow_html=True)
+        
+        # දත්ත ලබා ගැනීම
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
-        total_revenue = pd.read_sql("SELECT SUM(amount) FROM payments", conn).iloc[0,0] or 0
-        m1, m2, m3 = st.columns(3)
+        all_payments_df = pd.read_sql("SELECT * FROM payments", conn)
+        
+        # වත්මන් මාසය ලබා ගැනීම (උදා: April)
+        current_month_name = datetime.now().strftime("%B")
+        
+        # ගණනය කිරීම්
+        overall_total = all_payments_df['amount'].sum() if not all_payments_df.empty else 0
+        current_month_total = all_payments_df[all_payments_df['month'] == current_month_name]['amount'].sum() if not all_payments_df.empty else 0
+        
+        m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total Students", total_students)
-        m2.metric("Total Revenue", f"Rs. {total_revenue:,.2f}")
-        m3.metric("Status", "Active")
+        m2.metric(f"Revenue ({current_month_name})", f"Rs. {current_month_total:,.2f}")
+        m3.metric("Total Revenue (All)", f"Rs. {overall_total:,.2f}")
+        m4.metric("Status", "Active")
+        
+        st.markdown("---")
+        
+        col_left, col_right = st.columns([2, 1])
+        
+        with col_left:
+            st.subheader("📅 Monthly Revenue Breakdown")
+            if not all_payments_df.empty:
+                # මාසය අනුව Group කිරීම
+                monthly_summary = all_payments_df.groupby('month')['amount'].sum().reset_index()
+                st.table(monthly_summary)
+            else:
+                st.info("No payment data available yet.")
+        
+        with col_right:
+            st.subheader("Quick Actions")
+            if st.button("New Registration"):
+                st.info("Use Sidebar -> Registration")
+            if st.button("Add Payment"):
+                st.info("Use Sidebar -> Payments")
 
     # --- REGISTRATION ---
     elif choice == "📝 Registration":
@@ -104,7 +135,7 @@ else:
                     msg = urllib.parse.quote(f"🎓 *SMART CLASS*\nReceipt for {student['name']}\nGrade: {student['grade']}\nMonth: {month}\nAmount: Rs.{amount}")
                     st.markdown(f'<a href="https://wa.me/{student['whatsapp']}?text={msg}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366;color:white;padding:10px;text-align:center;border-radius:5px;">Send WhatsApp Receipt</div></a>', unsafe_allow_html=True)
 
-    # --- REPORTS (GROUPED BY GRADE) ---
+    # --- REPORTS ---
     elif choice == "📊 Reports":
         st.title("Reports Management")
         t1, t2, t3 = st.tabs(["Student List", "Payment Records", "🗑️ Delete Records"])
@@ -112,13 +143,10 @@ else:
         with t1:
             df_std = pd.read_sql("SELECT * FROM students", conn)
             if not df_std.empty:
-                # Grade එක අනුව Group කර පෙන්වීම
                 unique_grades = df_std['grade'].unique()
                 for g in unique_grades:
                     with st.expander(f"📂 {g} - Students", expanded=False):
                         st.table(df_std[df_std['grade'] == g][['id', 'name', 'school', 'whatsapp']])
-            else:
-                st.info("No students registered yet.")
                 
         with t2:
             df_pay = pd.read_sql("SELECT * FROM payments", conn)
@@ -127,8 +155,6 @@ else:
                 for g in unique_grades_pay:
                     with st.expander(f"💰 {g} - Payment Records", expanded=False):
                         st.table(df_pay[df_pay['grade'] == g][['id', 'student_name', 'month', 'amount', 'date']])
-            else:
-                st.info("No payments recorded yet.")
 
         with t3:
             col1, col2 = st.columns(2)
