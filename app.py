@@ -9,6 +9,7 @@ st.set_page_config(page_title="Smart Class Management", page_icon="🎓", layout
 
 st.markdown("""
     <style>
+    /* පද්ධතියේ පසුබිම සහ Metrics */
     [data-testid="stMetric"] {
         background-color: #ffffff !important;
         padding: 20px !important;
@@ -17,18 +18,58 @@ st.markdown("""
     }
     [data-testid="stMetricLabel"] { color: #1e293b !important; font-weight: bold !important; }
     [data-testid="stMetricValue"] { color: #1a73e8 !important; }
+
+    /* බොත්තම් වල පෙනුම */
     .stButton>button {
         width: 100%; border-radius: 8px; height: 3.5em;
         background-color: #1a73e8; color: white; font-weight: bold; border: none;
     }
-    /* Official Receipt Box Style */
-    .receipt-box {
-        background-color: #f8f9fa;
-        padding: 25px;
-        border-radius: 15px;
-        border: 2px dashed #1a73e8;
+
+    /* Official Receipt Box (පින්තූරයේ ඇති ආකාරයට) */
+    .receipt-container {
+        background-color: #f8faff;
+        border: 2px solid #1a73e8;
+        border-radius: 20px;
+        padding: 40px;
+        margin: 20px 0;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
         font-family: 'Courier New', Courier, monospace;
+        position: relative;
+    }
+    .receipt-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .receipt-title {
+        color: #1a73e8;
+        font-size: 32px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    .receipt-subtitle {
+        color: #555;
+        font-size: 18px;
+    }
+    .receipt-detail {
+        font-size: 18px;
+        margin-bottom: 15px;
         color: #333;
+    }
+    .receipt-label {
+        font-weight: bold;
+        min-width: 150px;
+        display: inline-block;
+    }
+    .receipt-footer {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 14px;
+        color: #777;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -113,38 +154,50 @@ else:
             results = pd.read_sql(f"SELECT * FROM students WHERE name LIKE '%{search_name}%'", conn)
             if not results.empty:
                 student = results.iloc[0]
-                st.info(f"Student: {student['name']} | Grade: {student['grade']}")
+                st.info(f"Selected: {student['name']} ({student['grade']})")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     month = st.selectbox("Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
                     amount = st.number_input("Amount (Rs.)", min_value=0.0)
-                    process = st.button("Generate Official Receipt")
+                    process = st.button("Generate & Save Payment")
                 
                 if process:
                     today = datetime.now().strftime("%Y-%m-%d")
                     conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", (student['name'], student['grade'], month, amount, today))
                     conn.commit()
                     
-                    # Official Receipt Display
+                    # පින්තූරයේ පෙනෙන ආකාරයටම CSS මගින් රිසිට් එක නිර්මාණය කිරීම
                     st.markdown(f"""
-                        <div class="receipt-box">
-                            <h2 style='text-align: center; color: #1a73e8;'>🎓 SMART CLASS</h2>
-                            <p style='text-align: center;'>Official Payment Receipt</p>
-                            <hr>
-                            <p><b>Date:</b> {today}</p>
-                            <p><b>Student:</b> {student['name']}</p>
-                            <p><b>Grade:</b> {student['grade']}</p>
-                            <p><b>Month:</b> {month}</p>
-                            <p><b>Paid Amount:</b> Rs. {amount:,.2f}</p>
-                            <hr>
-                            <p style='text-align: center; font-size: 12px;'>Thank you for your payment!</p>
+                        <div class="receipt-container">
+                            <div class="receipt-header">
+                                <div class="receipt-title">🎓 SMART CLASS</div>
+                                <div class="receipt-subtitle">Official Payment Receipt</div>
+                            </div>
+                            <div class="receipt-detail"><span class="receipt-label">Date:</span> {today}</div>
+                            <div class="receipt-detail"><span class="receipt-label">Student:</span> {student['name']}</div>
+                            <div class="receipt-detail"><span class="receipt-label">Grade:</span> {student['grade']}</div>
+                            <div class="receipt-detail"><span class="receipt-label">Month:</span> {month}</div>
+                            <div class="receipt-detail"><span class="receipt-label">Paid Amount:</span> Rs. {amount:,.2f}</div>
+                            <div class="receipt-footer">
+                                <hr style='border: 0.5px solid #eee;'>
+                                Thank you for your payment!
+                            </div>
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # WhatsApp Link
-                    msg = urllib.parse.quote(f"🎓 *SMART CLASS OFFICIAL RECEIPT*\n\nStudent: {student['name']}\nGrade: {student['grade']}\nMonth: {month}\nAmount: Rs.{amount:,.2f}\nDate: {today}\n\n✅ Payment Successful. Thank you!")
-                    st.markdown(f'<br><a href="https://wa.me/{student['whatsapp']}?text={msg}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366;color:white;padding:12px;text-align:center;border-radius:8px;font-weight:bold;">📲 Send WhatsApp Receipt</div></a>', unsafe_allow_html=True)
+                    # WhatsApp පණිවිඩය පිළිවෙළට සැකසීම
+                    whatsapp_msg = (
+                        f"🎓 *SMART CLASS OFFICIAL RECEIPT*\n\n"
+                        f"📅 *Date:* {today}\n"
+                        f"👤 *Student:* {student['name']}\n"
+                        f"📚 *Grade:* {student['grade']}\n"
+                        f"🗓️ *Month:* {month}\n"
+                        f"💰 *Paid Amount:* Rs. {amount:,.2f}\n\n"
+                        f"✅ Payment Successful. Thank you for your payment!"
+                    )
+                    encoded_msg = urllib.parse.quote(whatsapp_msg)
+                    st.markdown(f'<a href="https://wa.me/{student['whatsapp']}?text={encoded_msg}" target="_blank" style="text-decoration:none;"><div style="background-color:#25d366;color:white;padding:15px;text-align:center;border-radius:10px;font-weight:bold;font-size:18px;">📲 Send WhatsApp Receipt</div></a>', unsafe_allow_html=True)
 
     # --- REPORTS ---
     elif choice == "📊 Reports":
@@ -165,12 +218,14 @@ else:
         with t3:
             col1, col2 = st.columns(2)
             with col1:
+                st.subheader("Delete Student")
                 sid = st.number_input("Student ID", min_value=1, step=1, key="del_std")
                 if st.button("Delete Student", type="primary"):
                     conn.execute(f"DELETE FROM students WHERE id={sid}")
                     conn.commit()
                     st.rerun()
             with col2:
+                st.subheader("Delete Payment Record")
                 pid = st.number_input("Payment ID", min_value=1, step=1, key="del_pay")
                 if st.button("Delete Record", type="primary"):
                     conn.execute(f"DELETE FROM payments WHERE id={pid}")
