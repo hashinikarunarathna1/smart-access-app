@@ -17,24 +17,23 @@ st.markdown("""
         height: 2.5em;
         font-weight: bold;
     }
-    .delete-btn>button {
+    .delete-confirm>button {
         background-color: #ff4b4b !important;
         color: white !important;
     }
-    .save-btn>button {
-        background-color: #28a745 !important;
-        color: white !important;
+    .cancel-btn>button {
+        background-color: #f0f2f6 !important;
+        color: black !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 def get_connection():
-    return sqlite3.connect("smart_management_v7.db", check_same_thread=False)
+    return sqlite3.connect("smart_management_v8.db", check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # ID column එකක් එකතු කළා ලේසියෙන් delete කරන්න පුළුවන් වෙන්න
     cursor.execute('''CREATE TABLE IF NOT EXISTS students 
                       (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, whatsapp TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS payments 
@@ -43,6 +42,12 @@ def init_db():
     conn.close()
 
 init_db()
+
+# Session State for Delete Confirmation
+if 'confirm_delete_id' not in st.session_state:
+    st.session_state.confirm_delete_id = None
+if 'delete_type' not in st.session_state:
+    st.session_state.delete_type = None
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -71,13 +76,11 @@ else:
         school = st.text_input("School")
         grade = st.text_input("Grade")
         wa = st.text_input("WhatsApp (e.g. 94771234567)")
-        st.markdown('<div class="save-btn">', unsafe_allow_html=True)
         if st.button("Register Student"):
             conn = get_connection()
             conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
             conn.commit()
             st.success("සාර්ථකව ලියාපදිංචි කළා!")
-        st.markdown('</div>', unsafe_allow_html=True)
 
     elif choice == "Student Payment":
         st.title("💰 Payment Gateway")
@@ -95,7 +98,6 @@ else:
             selected_month = st.selectbox("Select Month", months)
             amt = st.number_input("Amount (Rs.)", min_value=0.0, step=100.0)
             
-            st.markdown('<div class="save-btn">', unsafe_allow_html=True)
             if st.button("Save & Send Official Receipt"):
                 if amt > 0:
                     today = datetime.now().strftime("%Y-%m-%d")
@@ -109,7 +111,6 @@ else:
                     
                     st.success("Payment Saved Successfully!")
                     st.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%;">📲 Send Official WhatsApp Receipt</button></a>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.warning("Register a student first.")
 
@@ -126,10 +127,24 @@ else:
                 cols[0].write(row['name'])
                 cols[1].write(row['grade'])
                 cols[2].write(row['whatsapp'])
-                if cols[3].button("🗑️", key=f"del_std_{row['id']}"):
-                    conn.execute(f"DELETE FROM students WHERE id = {row['id']}")
-                    conn.commit()
-                    st.rerun()
+                
+                # Delete Confirmation Logic
+                if st.session_state.confirm_delete_id == row['id'] and st.session_state.delete_type == 'student':
+                    st.warning(f"Delete {row['name']}?")
+                    c1, c2 = st.columns(2)
+                    if c1.button("✅ Yes", key=f"yes_std_{row['id']}"):
+                        conn.execute(f"DELETE FROM students WHERE id = {row['id']}")
+                        conn.commit()
+                        st.session_state.confirm_delete_id = None
+                        st.rerun()
+                    if c2.button("❌ No", key=f"no_std_{row['id']}"):
+                        st.session_state.confirm_delete_id = None
+                        st.rerun()
+                else:
+                    if cols[3].button("🗑️", key=f"del_std_{row['id']}"):
+                        st.session_state.confirm_delete_id = row['id']
+                        st.session_state.delete_type = 'student'
+                        st.rerun()
             
         with tab2:
             st.subheader("Manage Payments")
@@ -140,10 +155,24 @@ else:
                 cols[1].write(row['month'])
                 cols[2].write(f"Rs.{row['amount']}")
                 cols[3].write(row['date'])
-                if cols[4].button("🗑️", key=f"del_pay_{row['id']}"):
-                    conn.execute(f"DELETE FROM payments WHERE id = {row['id']}")
-                    conn.commit()
-                    st.rerun()
+                
+                # Delete Confirmation Logic
+                if st.session_state.confirm_delete_id == row['id'] and st.session_state.delete_type == 'payment':
+                    st.error("Delete this record?")
+                    c1, c2 = st.columns(2)
+                    if c1.button("Confirm", key=f"yes_pay_{row['id']}"):
+                        conn.execute(f"DELETE FROM payments WHERE id = {row['id']}")
+                        conn.commit()
+                        st.session_state.confirm_delete_id = None
+                        st.rerun()
+                    if c2.button("Cancel", key=f"no_pay_{row['id']}"):
+                        st.session_state.confirm_delete_id = None
+                        st.rerun()
+                else:
+                    if cols[4].button("🗑️", key=f"del_pay_{row['id']}"):
+                        st.session_state.confirm_delete_id = row['id']
+                        st.session_state.delete_type = 'payment'
+                        st.rerun()
             
             if not payments_data.empty:
                 st.markdown("---")
