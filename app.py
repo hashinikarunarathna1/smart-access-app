@@ -7,6 +7,7 @@ from datetime import datetime
 # --- CONFIG & STYLING ---
 st.set_page_config(page_title="Smart Class Management", page_icon="🎓", layout="wide")
 
+# CSS Styling (ඔයාගේ Receipt එකේ පෙනුම ඇතුළුව)
 st.markdown("""
     <style>
     [data-testid="stMetric"] {
@@ -42,21 +43,30 @@ def init_db():
 
 init_db()
 
-# --- LOGIN ---
+# --- LOGIN SYSTEM ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
+
+def login_user(username, password):
+    if username == "admin" and password == "1234":
+        st.session_state['logged_in'] = True
+        return True
+    return False
 
 if not st.session_state['logged_in']:
     st.markdown("<h2 style='text-align: center; color: #1a73e8;'>🔐 Smart Class Admin Login</h2>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        user = st.text_input("Username")
-        pw = st.text_input("Password", type="password")
+        user_input = st.text_input("Username")
+        pass_input = st.text_input("Password", type="password")
         if st.button("Login"):
-            if user == "admin" and pw == "1234":
-                st.session_state['logged_in'] = True
+            if login_user(user_input, pass_input):
+                st.success("සාර්ථකව ඇතුල් වුණා! කරුණාකර නැවත 'Login' බටන් එක ඔබන්න හෝ Page එක Refresh කරන්න.")
                 st.rerun()
+            else:
+                st.error("පරිශීලක නාමය හෝ මුරපදය වැරදියි!")
 else:
+    # --- APP CONTENT AFTER LOGIN ---
     st.sidebar.title("💎 Smart Class Pro")
     choice = st.sidebar.radio("Main Menu", ["🚀 Dashboard", "📝 Registration", "💰 Payments", "📊 Reports"])
     
@@ -93,7 +103,7 @@ else:
                 if name and wa:
                     conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
                     conn.commit()
-                    st.success("Registered Successfully!")
+                    st.success("සාර්ථකව ලියාපදිංචි කළා!")
 
     # --- PAYMENTS ---
     elif choice == "💰 Payments":
@@ -103,16 +113,32 @@ else:
             results = pd.read_sql(f"SELECT * FROM students WHERE name LIKE '%{search_name}%'", conn)
             if not results.empty:
                 student = results.iloc[0]
-                st.info(f"Selected: {student['name']} ({student['grade']})")
+                st.info(f"ශිෂ්‍යයා: {student['name']} ({student['grade']})")
                 month = st.selectbox("Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
                 amount = st.number_input("Amount (Rs.)", min_value=0.0)
                 if st.button("Generate & Save Payment"):
                     today = datetime.now().strftime("%Y-%m-%d")
                     conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", (student['name'], student['grade'], month, amount, today))
                     conn.commit()
-                    st.success("Payment Saved!")
+                    st.success("ගෙවීම් සටහන් කළා!")
+                    
+                    # රිසිට් එක පෙන්වීම (Receipt Display)
+                    st.markdown(f"""
+                        <div class="receipt-container">
+                            <h2 style='text-align: center; color: #1a73e8;'>🎓 SMART CLASS</h2>
+                            <p style='text-align: center;'>Official Payment Receipt</p>
+                            <hr>
+                            <p><b>Date:</b> {today}</p>
+                            <p><b>Student:</b> {student['name']}</p>
+                            <p><b>Grade:</b> {student['grade']}</p>
+                            <p><b>Month:</b> {month}</p>
+                            <p><b>Paid Amount:</b> Rs. {amount:,.2f}</p>
+                            <hr>
+                            <p style='text-align: center;'>ස්තූතියි!</p>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-    # --- REPORTS & ARREARS LIST ---
+    # --- REPORTS ---
     elif choice == "📊 Reports":
         st.title("Reports Management")
         t1, t2, t3, t4 = st.tabs(["Student List", "Payment Records", "🚨 Pending Payments", "🗑️ Delete Records"])
@@ -131,42 +157,33 @@ else:
                     with st.expander(f"💰 {g} - Payment Records", expanded=False):
                         st.table(df_pay[df_pay['grade'] == g][['id', 'student_name', 'month', 'amount', 'date']])
 
-        # --- ARREARS LOGIC ---
         with t3:
-            st.subheader("Students who haven't paid for a specific month")
-            target_month = st.selectbox("Select Month to check Arrears", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
-            
+            st.subheader("ගෙවීම් ඉතිරි ශිෂ්‍යයන් (Arrears List)")
+            target_month = st.selectbox("Select Month to check", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
             df_all_std = pd.read_sql("SELECT name, grade, whatsapp FROM students", conn)
             df_paid_std = pd.read_sql(f"SELECT student_name FROM payments WHERE month = '{target_month}'", conn)
             
             if not df_all_std.empty:
-                # ගෙවපු අයගේ නම් ලැයිස්තුවක් සාදා ගැනීම
                 paid_list = df_paid_std['student_name'].tolist()
-                # මුළු ශිෂ්‍ය ලැයිස්තුවෙන් ගෙවපු අය අයින් කිරීම
                 arrears_df = df_all_std[~df_all_std['name'].isin(paid_list)]
-                
                 if not arrears_df.empty:
-                    st.warning(f"Found {len(arrears_df)} students who haven't paid for {target_month}")
-                    st.dataframe(arrears_df, use_container_width=True)
-                    
-                    # WhatsApp Reminder එකක් යැවීමට
-                    st.info("ඔබට අවශ්‍ය නම් පහත ශිෂ්‍යයන්ට Reminder එකක් යැවිය හැක.")
+                    st.warning(f"{target_month} මාසය සඳහා ගෙවීම් නොකළ ශිෂ්‍යයන් {len(arrears_df)} ක් හමු වුණා.")
+                    st.table(arrears_df)
                 else:
-                    st.success(f"Everyone has paid for {target_month}!")
-            else:
-                st.info("No students registered.")
+                    st.success(f"සියලුම ශිෂ්‍යයන් {target_month} සඳහා ගෙවා ඇත!")
 
         with t4:
+            st.subheader("දත්ත ඉවත් කිරීම")
             col1, col2 = st.columns(2)
             with col1:
-                sid = st.number_input("Student ID", min_value=1, step=1, key="del_std")
-                if st.button("Delete Student"):
+                sid = st.number_input("ශිෂ්‍ය ID එක", min_value=1, step=1)
+                if st.button("Delete Student", type="secondary"):
                     conn.execute(f"DELETE FROM students WHERE id={sid}")
                     conn.commit()
                     st.rerun()
             with col2:
-                pid = st.number_input("Payment ID", min_value=1, step=1, key="del_pay")
-                if st.button("Delete Record"):
+                pid = st.number_input("ගෙවීම් ID එක", min_value=1, step=1)
+                if st.button("Delete Payment", type="secondary"):
                     conn.execute(f"DELETE FROM payments WHERE id={pid}")
                     conn.commit()
                     st.rerun()
