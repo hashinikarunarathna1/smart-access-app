@@ -1,85 +1,100 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
+import sqlite3
+import urllib.parse
 
-# --- DATABASE SETUP ---
+# Page Setup
+st.set_page_config(page_title="Smart Access Pro", layout="centered")
+
+# Custom CSS for UI Design
+st.markdown("""
+    <style>
+    .main { background-color: #f0f2f6; }
+    .stButton>button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+    }
+    .stTextInput>div>div>input { border-radius: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Database logic
+def get_connection():
+    return sqlite3.connect("management.db", check_same_thread=False)
+
 def init_db():
-    conn = sqlite3.connect("management.db", check_same_thread=False)
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS students 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, class_name TEXT, whatsapp TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS payments 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, amount TEXT)''')
+    cursor.execute('CREATE TABLE IF NOT EXISTS students (name TEXT, school TEXT, grade TEXT, whatsapp TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS payments (student_name TEXT, amount TEXT, date TEXT)')
     conn.commit()
-    return conn
+    conn.close()
 
-conn = init_db()
+init_db()
 
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.title("Smart Access Menu")
-page = st.sidebar.radio("Go to", ["Login", "Dashboard", "New Registration", "Student Payment", "Registration Details", "Payment History"])
+# Login
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-# --- LOGIN SCREEN ---
-if page == "Login":
-    st.title("🔐 Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+if not st.session_state['logged_in']:
+    st.title("🔐 Smart Access Login")
+    user = st.text_input("Username")
+    pw = st.text_input("Password", type="password")
     if st.button("Login"):
-        if username == "admin" and password == "1234":
-            st.success("Logged In Successfully!")
-            st.session_state["logged_in"] = True
+        if user == "admin" and pw == "1234":
+            st.session_state['logged_in'] = True
+            st.rerun()
         else:
-            st.error("Invalid Credentials")
+            st.error("Invalid Credentials!")
+else:
+    st.sidebar.title("💎 Smart Access Menu")
+    choice = st.sidebar.selectbox("Go to", ["Dashboard", "New Registration", "Student Payment", "View Data"])
 
-# --- DASHBOARD ---
-elif page == "Dashboard":
-    st.title("📊 Management Dashboard")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info(f"Total Students: {pd.read_sql('SELECT COUNT(*) FROM students', conn).iloc[0,0]}")
-    with col2:
-        st.success(f"Total Payments: {pd.read_sql('SELECT COUNT(*) FROM payments', conn).iloc[0,0]}")
-
-# --- NEW REGISTRATION ---
-elif page == "New Registration":
-    st.title("📝 Student Registration")
-    with st.form("reg_form"):
-        name = st.text_input("Student Full Name")
+    if choice == "Dashboard":
+        st.title("🚀 Dashboard")
+        st.info("සාදරයෙන් පිළිගන්නවා!")
+        
+    elif choice == "New Registration":
+        st.title("📝 Student Registration")
+        name = st.text_input("Full Name")
         school = st.text_input("School")
         grade = st.text_input("Grade")
-        class_name = st.text_input("Class Name")
-        whatsapp = st.text_input("WhatsApp Number")
-        if st.form_submit_button("Save Student"):
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO students (name, school, grade, class_name, whatsapp) VALUES (?,?,?,?,?)", 
-                           (name, school, grade, class_name, whatsapp))
+        wa = st.text_input("WhatsApp (e.g. 94771234567)")
+        if st.button("Register Student"):
+            conn = get_connection()
+            conn.execute("INSERT INTO students VALUES (?,?,?,?)", (name, school, grade, wa))
             conn.commit()
-            st.success("Student Registered!")
+            st.success("සාර්ථකව ලියාපදිංචි කළා!")
 
-# --- STUDENT PAYMENT ---
-elif page == "Student Payment":
-    st.title("💰 Add Payment")
-    p_name = st.text_input("Student Name")
-    p_grade = st.text_input("Grade")
-    p_amount = st.text_input("Amount (Rs.)")
-    
-    if st.button("Confirm Payment"):
-        student = conn.execute("SELECT * FROM students WHERE name=? AND grade=?", (p_name, p_grade)).fetchone()
-        if student:
-            conn.execute("INSERT INTO payments (student_name, grade, amount) VALUES (?,?,?)", (p_name, p_grade, p_amount))
-            conn.commit()
-            st.success("Payment Added!")
+    elif choice == "Student Payment":
+        st.title("💰 Payment Gateway")
+        conn = get_connection()
+        students_df = pd.read_sql("SELECT name, whatsapp FROM students", conn)
+        if not students_df.empty:
+            s_name = st.selectbox("Select Student", students_df['name'])
+            amt = st.text_input("Amount (Rs.)")
+            if st.button("Save & Send WhatsApp"):
+                conn.execute("INSERT INTO payments VALUES (?,?,?)", (s_name, amt, "Today"))
+                conn.commit()
+                
+                student_wa = students_df[students_df['name'] == s_name]['whatsapp'].values[0]
+                msg = f"ස්තූතියි {s_name}, රු. {amt} මුදල අපට ලැබුණා."
+                encoded_msg = urllib.parse.quote(msg)
+                wa_url = f"https://wa.me/{student_wa}?text={encoded_msg}"
+                st.markdown(f'[👉 මෙතනින් WhatsApp Message එක යවන්න]({wa_url})', unsafe_allow_html=True)
         else:
-            st.error("Student Not Found!")
+            st.warning("මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
 
-# --- REGISTRATION DETAILS ---
-elif page == "Registration Details":
-    st.title("📋 Registered Students")
-    df = pd.read_sql("SELECT name, school, grade, whatsapp, class_name FROM students", conn)
-    st.dataframe(df, use_container_width=True)
+    elif choice == "View Data":
+        st.title("📊 Records")
+        conn = get_connection()
+        st.write("Registered Students")
+        st.dataframe(pd.read_sql("SELECT * FROM students", conn))
 
-# --- PAYMENT HISTORY ---
-elif page == "Payment History":
-    st.title("📜 Payment History")
-    df_pay = pd.read_sql("SELECT student_name, grade, amount FROM payments ORDER BY id DESC", conn)
-    st.table(df_pay)
+    if st.sidebar.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.rerun()
