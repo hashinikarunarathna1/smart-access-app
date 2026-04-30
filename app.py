@@ -7,33 +7,38 @@ from datetime import datetime
 # Page Setup
 st.set_page_config(page_title="Smart Access Pro", layout="centered")
 
-# Custom CSS for UI
+# Custom CSS
 st.markdown("""
     <style>
     .main { background-color: #f0f2f6; }
     .stButton>button {
         width: 100%;
         border-radius: 10px;
-        height: 3em;
-        background-color: #28a745;
-        color: white;
+        height: 2.5em;
         font-weight: bold;
     }
-    .stTextInput>div>div>input { border-radius: 10px; }
+    .delete-btn>button {
+        background-color: #ff4b4b !important;
+        color: white !important;
+    }
+    .save-btn>button {
+        background-color: #28a745 !important;
+        color: white !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 def get_connection():
-    # Database එකේ නම වෙනස් කිරීමෙන් දත්ත ව්‍යුහයේ වෙනස්කම් නිසා එන ගැටලු මගහැරිය හැක
-    return sqlite3.connect("smart_management_v6.db", check_same_thread=False)
+    return sqlite3.connect("smart_management_v7.db", check_same_thread=False)
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+    # ID column එකක් එකතු කළා ලේසියෙන් delete කරන්න පුළුවන් වෙන්න
     cursor.execute('''CREATE TABLE IF NOT EXISTS students 
-                      (name TEXT, school TEXT, grade TEXT, whatsapp TEXT)''')
+                      (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, whatsapp TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS payments 
-                      (student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)''')
+                      (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)''')
     conn.commit()
     conn.close()
 
@@ -66,11 +71,13 @@ else:
         school = st.text_input("School")
         grade = st.text_input("Grade")
         wa = st.text_input("WhatsApp (e.g. 94771234567)")
+        st.markdown('<div class="save-btn">', unsafe_allow_html=True)
         if st.button("Register Student"):
             conn = get_connection()
-            conn.execute("INSERT INTO students VALUES (?,?,?,?)", (name, school, grade, wa))
+            conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
             conn.commit()
             st.success("සාර්ථකව ලියාපදිංචි කළා!")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     elif choice == "Student Payment":
         st.title("💰 Payment Gateway")
@@ -84,11 +91,11 @@ else:
             student_wa = selected_student_info['whatsapp'].values[0]
 
             st.text_input("Grade", value=s_grade, disabled=True)
-            months = ["January", "February", "March", "April", "May", "June", 
-                      "July", "August", "September", "October", "November", "December"]
+            months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
             selected_month = st.selectbox("Select Month", months)
             amt = st.number_input("Amount (Rs.)", min_value=0.0, step=100.0)
             
+            st.markdown('<div class="save-btn">', unsafe_allow_html=True)
             if st.button("Save & Send Official Receipt"):
                 if amt > 0:
                     today = datetime.now().strftime("%Y-%m-%d")
@@ -96,34 +103,15 @@ else:
                                  (s_name, s_grade, selected_month, amt, today))
                     conn.commit()
                     
-                    receipt_msg = (
-                        f"🎓 *SMART CLASS - Official Receipt* 🎓\n"
-                        f"-----------------------------------\n"
-                        f"👤 *Student:* {s_name}\n"
-                        f"📚 *Grade:* {s_grade}\n"
-                        f"🗓️ *Month:* {selected_month}\n"
-                        f"💰 *Amount:* Rs. {amt:,.2f}\n"
-                        f"📅 *Date:* {today}\n"
-                        f"✅ *Status:* Payment Received\n"
-                        f"-----------------------------------\n"
-                        f"*Thank you for your payment!*"
-                    )
-                    
+                    receipt_msg = (f"🎓 *SMART CLASS - Official Receipt* 🎓\n-----------------------------------\n👤 *Student:* {s_name}\n📚 *Grade:* {s_grade}\n🗓️ *Month:* {selected_month}\n💰 *Amount:* Rs. {amt:,.2f}\n📅 *Date:* {today}\n✅ *Status:* Payment Received\n-----------------------------------\n*Thank you for your payment!*")
                     encoded_msg = urllib.parse.quote(receipt_msg)
                     wa_url = f"https://wa.me/{student_wa}?text={encoded_msg}"
                     
                     st.success("Payment Saved Successfully!")
-                    st.markdown(f'''
-                        <a href="{wa_url}" target="_blank">
-                            <button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%;">
-                                📲 Send Official WhatsApp Receipt
-                            </button>
-                        </a>
-                        ''', unsafe_allow_html=True)
-                else:
-                    st.warning("කරුණාකර මුදලක් ඇතුළත් කරන්න.")
+                    st.markdown(f'<a href="{wa_url}" target="_blank"><button style="background-color: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%;">📲 Send Official WhatsApp Receipt</button></a>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.warning("මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
+            st.warning("Register a student first.")
 
     elif choice == "View Data":
         st.title("📊 Records")
@@ -131,31 +119,40 @@ else:
         tab1, tab2 = st.tabs(["Registered Students", "Payment History"])
         
         with tab1:
-            st.dataframe(pd.read_sql("SELECT * FROM students", conn), use_container_width=True)
+            st.subheader("Manage Students")
+            students_data = pd.read_sql("SELECT * FROM students", conn)
+            for index, row in students_data.iterrows():
+                cols = st.columns([3, 2, 2, 1])
+                cols[0].write(row['name'])
+                cols[1].write(row['grade'])
+                cols[2].write(row['whatsapp'])
+                if cols[3].button("🗑️", key=f"del_std_{row['id']}"):
+                    conn.execute(f"DELETE FROM students WHERE id = {row['id']}")
+                    conn.commit()
+                    st.rerun()
             
         with tab2:
-            payments_df = pd.read_sql("SELECT * FROM payments", conn)
-            st.dataframe(payments_df, use_container_width=True)
+            st.subheader("Manage Payments")
+            payments_data = pd.read_sql("SELECT * FROM payments", conn)
+            for index, row in payments_data.iterrows():
+                cols = st.columns([2, 1, 1, 1, 1])
+                cols[0].write(row['student_name'])
+                cols[1].write(row['month'])
+                cols[2].write(f"Rs.{row['amount']}")
+                cols[3].write(row['date'])
+                if cols[4].button("🗑️", key=f"del_pay_{row['id']}"):
+                    conn.execute(f"DELETE FROM payments WHERE id = {row['id']}")
+                    conn.commit()
+                    st.rerun()
             
-            if not payments_df.empty:
+            if not payments_data.empty:
                 st.markdown("---")
-                # 1. මුළු එකතුව (Overall Total)
-                total_all = payments_df['amount'].sum()
-                st.subheader(f"💰 Overall Total Revenue: Rs. {total_all:,.2f}")
+                total_all = payments_data['amount'].sum()
+                st.subheader(f"💰 Total: Rs. {total_all:,.2f}")
                 
-                # 2. මාසය අනුව වෙන් වෙන්ව එකතුව (Monthly Breakdown)
                 st.markdown("### 🗓️ Monthly Summary")
-                monthly_summary = payments_df.groupby('month')['amount'].sum().reset_index()
-                # මාස පිළිවෙළට සකස් කිරීම සඳහා (විකල්ප)
-                month_order = ["January", "February", "March", "April", "May", "June", 
-                               "July", "August", "September", "October", "November", "December"]
-                monthly_summary['month'] = pd.Categorical(monthly_summary['month'], categories=month_order, ordered=True)
-                monthly_summary = monthly_summary.sort_values('month')
-                
-                # ලස්සනට පෙන්වීමට වගුවක් ලෙස
-                st.table(monthly_summary.style.format({"amount": "{:,.2f}"}))
-            else:
-                st.write("ගෙවීම් වාර්තා කිසිවක් නැත.")
+                monthly_summary = payments_data.groupby('month')['amount'].sum().reset_index()
+                st.table(monthly_summary)
 
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
