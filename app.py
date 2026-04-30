@@ -24,8 +24,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def get_connection():
-    # Database එකේ නම වෙනස් කිරීමෙන් පරණ නොගැලපෙන දත්ත නිසා එන Errors මගහැරිය හැක
-    return sqlite3.connect("smart_management_v5.db", check_same_thread=False)
+    # Database එකේ නම වෙනස් කිරීමෙන් දත්ත ව්‍යුහයේ වෙනස්කම් නිසා එන ගැටලු මගහැරිය හැක
+    return sqlite3.connect("smart_management_v6.db", check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -121,9 +121,9 @@ else:
                         </a>
                         ''', unsafe_allow_html=True)
                 else:
-                    st.warning("කරුණාකර වලංගු මුදලක් ඇතුළත් කරන්න.")
+                    st.warning("කරුණාකර මුදලක් ඇතුළත් කරන්න.")
         else:
-            st.warning("පද්ධතියේ ශිෂ්‍යයන් නොමැත. මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
+            st.warning("මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
 
     elif choice == "View Data":
         st.title("📊 Records")
@@ -138,9 +138,22 @@ else:
             st.dataframe(payments_df, use_container_width=True)
             
             if not payments_df.empty:
-                # මුළු එකතුව ගණනය කිරීම
-                total_amount = payments_df['amount'].sum()
-                st.markdown(f"### 💰 Total Revenue: Rs. {total_amount:,.2f}")
+                st.markdown("---")
+                # 1. මුළු එකතුව (Overall Total)
+                total_all = payments_df['amount'].sum()
+                st.subheader(f"💰 Overall Total Revenue: Rs. {total_all:,.2f}")
+                
+                # 2. මාසය අනුව වෙන් වෙන්ව එකතුව (Monthly Breakdown)
+                st.markdown("### 🗓️ Monthly Summary")
+                monthly_summary = payments_df.groupby('month')['amount'].sum().reset_index()
+                # මාස පිළිවෙළට සකස් කිරීම සඳහා (විකල්ප)
+                month_order = ["January", "February", "March", "April", "May", "June", 
+                               "July", "August", "September", "October", "November", "December"]
+                monthly_summary['month'] = pd.Categorical(monthly_summary['month'], categories=month_order, ordered=True)
+                monthly_summary = monthly_summary.sort_values('month')
+                
+                # ලස්සනට පෙන්වීමට වගුවක් ලෙස
+                st.table(monthly_summary.style.format({"amount": "{:,.2f}"}))
             else:
                 st.write("ගෙවීම් වාර්තා කිසිවක් නැත.")
 
