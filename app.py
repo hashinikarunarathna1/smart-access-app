@@ -24,7 +24,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def get_connection():
-    return sqlite3.connect("smart_management_v4.db", check_same_thread=False)
+    # Database එකේ නම වෙනස් කිරීමෙන් පරණ නොගැලපෙන දත්ත නිසා එන Errors මගහැරිය හැක
+    return sqlite3.connect("smart_management_v5.db", check_same_thread=False)
 
 def init_db():
     conn = get_connection()
@@ -32,7 +33,7 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS students 
                       (name TEXT, school TEXT, grade TEXT, whatsapp TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS payments 
-                      (student_name TEXT, grade TEXT, month TEXT, amount TEXT, date TEXT)''')
+                      (student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)''')
     conn.commit()
     conn.close()
 
@@ -86,23 +87,22 @@ else:
             months = ["January", "February", "March", "April", "May", "June", 
                       "July", "August", "September", "October", "November", "December"]
             selected_month = st.selectbox("Select Month", months)
-            amt = st.text_input("Amount (Rs.)")
+            amt = st.number_input("Amount (Rs.)", min_value=0.0, step=100.0)
             
             if st.button("Save & Send Official Receipt"):
-                if amt:
+                if amt > 0:
                     today = datetime.now().strftime("%Y-%m-%d")
                     conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", 
                                  (s_name, s_grade, selected_month, amt, today))
                     conn.commit()
                     
-                    # --- Official WhatsApp Message Design ---
                     receipt_msg = (
                         f"🎓 *SMART CLASS - Official Receipt* 🎓\n"
                         f"-----------------------------------\n"
                         f"👤 *Student:* {s_name}\n"
                         f"📚 *Grade:* {s_grade}\n"
                         f"🗓️ *Month:* {selected_month}\n"
-                        f"💰 *Amount:* Rs. {amt}.00\n"
+                        f"💰 *Amount:* Rs. {amt:,.2f}\n"
                         f"📅 *Date:* {today}\n"
                         f"✅ *Status:* Payment Received\n"
                         f"-----------------------------------\n"
@@ -121,18 +121,28 @@ else:
                         </a>
                         ''', unsafe_allow_html=True)
                 else:
-                    st.warning("Please enter the amount.")
+                    st.warning("කරුණාකර වලංගු මුදලක් ඇතුළත් කරන්න.")
         else:
-            st.warning("No students found. Register a student first.")
+            st.warning("පද්ධතියේ ශිෂ්‍යයන් නොමැත. මුලින්ම ශිෂ්‍යයෙකු ලියාපදිංචි කරන්න.")
 
     elif choice == "View Data":
         st.title("📊 Records")
         conn = get_connection()
         tab1, tab2 = st.tabs(["Registered Students", "Payment History"])
+        
         with tab1:
             st.dataframe(pd.read_sql("SELECT * FROM students", conn), use_container_width=True)
+            
         with tab2:
-            st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
+            payments_df = pd.read_sql("SELECT * FROM payments", conn)
+            st.dataframe(payments_df, use_container_width=True)
+            
+            if not payments_df.empty:
+                # මුළු එකතුව ගණනය කිරීම
+                total_amount = payments_df['amount'].sum()
+                st.markdown(f"### 💰 Total Revenue: Rs. {total_amount:,.2f}")
+            else:
+                st.write("ගෙවීම් වාර්තා කිසිවක් නැත.")
 
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
