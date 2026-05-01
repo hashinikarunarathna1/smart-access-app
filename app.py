@@ -76,7 +76,6 @@ else:
         st.title("System Overview")
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_payments_df = pd.read_sql("SELECT * FROM payments", conn)
-        
         rev_total = all_payments_df['amount'].sum() if not all_payments_df.empty else 0
         
         m1, m2, m3 = st.columns(3)
@@ -85,23 +84,13 @@ else:
         m3.metric("Status", "Online")
         
         st.divider()
-        
-        # --- අලුතින් එකතු කළ MONTHLY TOTAL SECTION ---
         st.subheader("📅 Monthly Revenue Breakdown")
         if not all_payments_df.empty:
-            # මාසය අනුව දත්ත ගොනු කර මුළු මුදල ගණනය කිරීම
             monthly_totals = all_payments_df.groupby('month')['amount'].sum().reset_index()
-            # පෙන්වන නම වෙනස් කිරීම
             monthly_totals.columns = ['Month', 'Total Revenue (Rs.)']
-            
-            # ලස්සනට පෙන්වීමට columns දෙකක් පාවිච්චි කරමු
-            c1, c2 = st.columns([2, 1])
-            with c1:
-                st.table(monthly_totals)
-            with c2:
-                st.info("මෙහි දැක්වෙන්නේ එක් එක් මාසයට අදාළව සිසුන්ගෙන් ලැබුණු මුළු ආදායමයි.")
+            st.table(monthly_totals)
         else:
-            st.info("තවමත් ගෙවීම් දත්ත ඇතුළත් කර නැත.")
+            st.info("තවමත් ගෙවීම් දත්ත නැත.")
 
     # --- 📝 REGISTRATION ---
     elif choice == "📝 Registration":
@@ -137,13 +126,24 @@ else:
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
-    # --- 📊 REPORTS ---
+    # --- 📊 REPORTS & MANAGEMENT ---
     elif choice == "📊 Reports":
         st.title("Reports & Management")
-        tab1, tab2, tab3, tab4 = st.tabs(["Student List", "Payment Logs", "🔴 Arrears List", "🗑️ Delete Records"])
+        tab1, tab2, tab3, tab4 = st.tabs(["👥 Student List (By Grade)", "📄 All Payment Logs", "🔴 Arrears List", "🗑️ Delete Records"])
         
         with tab1:
-            st.dataframe(pd.read_sql("SELECT * FROM students", conn), use_container_width=True)
+            st.subheader("Categorized Student Records")
+            df_std = pd.read_sql("SELECT * FROM students", conn)
+            if not df_std.empty:
+                # Grade එක අනුව ගොනු කර පෙන්වීම
+                grades_list = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"]
+                for g in grades_list:
+                    grade_data = df_std[df_std['grade'] == g]
+                    if not grade_data.empty:
+                        with st.expander(f"📂 {g} - ({len(grade_data)} Students)"):
+                            st.dataframe(grade_data[['id', 'name', 'school', 'whatsapp']], use_container_width=True)
+            else:
+                st.info("සිසුන් ලියාපදිංචි කර නැත.")
         
         with tab2:
             st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
@@ -170,4 +170,4 @@ else:
                     st.warning(f"ID {del_id} deleted from {table}!")
                     st.rerun()
             with col2:
-                st.info("වැදගත්: Delete කරන්න කලින් 'Payment Logs' හෝ 'Student List' එකෙන් අදාළ ID එක නිවැරදිද කියලා පරීක්ෂා කරලා බලන්න.")
+                st.info("Delete කිරීමට පෙර අදාළ ID එක නිවැරදිදැයි පරීක්ෂා කරන්න.")
