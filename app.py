@@ -42,7 +42,6 @@ def init_db():
     cursor.execute('CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, amount REAL, date TEXT, target_month TEXT)')
     
-    # පරණ ඩේටාබේස් එකට target_month එකතු වී නැත්නම් එය එකතු කිරීම (Migration)
     try:
         cursor.execute("SELECT target_month FROM expenses LIMIT 1")
     except sqlite3.OperationalError:
@@ -79,9 +78,12 @@ else:
     conn = get_connection()
     months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    # --- 🚀 DASHBOARD ---
+    # --- 🚀 DASHBOARD (UPDATED) ---
     if choice == "🚀 Dashboard":
         st.title("System Overview")
+        
+        # දත්ත ලබාගැනීම
+        total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
         all_exp = pd.read_sql("SELECT amount FROM expenses", conn)
         
@@ -90,9 +92,9 @@ else:
         net = income - expense
         
         m1, m2, m3 = st.columns(3)
-        m1.metric("Total Income", f"Rs. {income:,.2f}")
+        m1.metric("Total Registered Students", total_students)
         m2.metric("Total Cash Out", f"Rs. {expense:,.2f}")
-        m3.metric("Net Balance", f"Rs. {net:,.2f}") # සෘණ අගයන් බලාගැනීම සඳහා max(0, net) ඉවත් කළා
+        m3.metric("Net Balance", f"Rs. {net:,.2f}")
         
         st.divider()
         st.subheader("📅 Monthly Revenue (Student Payments)")
@@ -108,7 +110,7 @@ else:
             name = st.text_input("Student Name")
             school = st.text_input("School")
             grade = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
-            wa = st.text_input("WhatsApp Number (e.g. 94771234567)")
+            wa = st.text_input("WhatsApp Number")
             if st.form_submit_button("Register"):
                 if name and wa:
                     conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
@@ -132,21 +134,17 @@ else:
                     conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", (s_name, s_info['grade'], month, amt, date_str))
                     conn.commit()
                     
-                    # Receipt UI
                     st.markdown(f'<div class="receipt-container"><div class="receipt-title">🎓 SMART CLASS</div><p style="text-align:center;">Date: {date_str}<br>Name: {s_name}<br>Month: {month}<br>Amount: Rs.{amt:,.2f}</p></div>', unsafe_allow_html=True)
                     
-                    # WhatsApp Receipt Button
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
-    # --- 💸 CASH OUT (Targeted with Remaining Balance) ---
+    # --- 💸 CASH OUT ---
     elif choice == "💸 Cash Out":
         st.title("💸 Targeted Cash Out")
         col1, col2 = st.columns(2)
         with col1:
             t_month = st.selectbox("Select Month to Withdraw from", months_list)
-            
-            # මාසයට අදාළ ඉතිරි මුදල ගණනය කිරීම
             m_income = pd.read_sql(f"SELECT SUM(amount) as total FROM payments WHERE month='{t_month}'", conn).iloc[0,0] or 0.0
             m_expenses = pd.read_sql(f"SELECT SUM(amount) as total FROM expenses WHERE target_month='{t_month}'", conn).iloc[0,0] or 0.0
             remaining_balance = m_income - m_expenses
@@ -160,7 +158,7 @@ else:
                 amt = st.number_input("Amount", min_value=0.0)
                 if st.form_submit_button("Confirm Cash Out"):
                     if amt > remaining_balance:
-                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ! {t_month} සඳහා ඉතිරිව ඇත්තේ රු. {remaining_balance} කි.")
+                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ!")
                     elif desc and amt > 0:
                         conn.execute("INSERT INTO expenses (description, amount, date, target_month) VALUES (?,?,?,?)", 
                                      (desc, amt, datetime.now().strftime("%Y-%m-%d %H:%M"), t_month))
@@ -184,10 +182,8 @@ else:
                     if not g_data.empty:
                         with st.expander(f"📂 {g} - ({len(g_data)})"):
                             st.dataframe(g_data, use_container_width=True)
-        
         with tab2:
             st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
-            
         with tab3:
             cm = st.selectbox("Month", months_list)
             cg = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
@@ -195,11 +191,7 @@ else:
                 all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
                 arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
-                if not arrears.empty:
-                    st.table(arrears)
-                else:
-                    st.success("All Paid!")
-                    
+                st.table(arrears) if not arrears.empty else st.success("All Paid!")
         with tab4:
             st.subheader("Remove Records")
             dt = st.radio("Type", ["Payments", "Students", "Expenses"])
