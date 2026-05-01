@@ -135,7 +135,6 @@ else:
             st.subheader("Categorized Student Records")
             df_std = pd.read_sql("SELECT * FROM students", conn)
             if not df_std.empty:
-                # Grade එක අනුව ගොනු කර පෙන්වීම
                 grades_list = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"]
                 for g in grades_list:
                     grade_data = df_std[df_std['grade'] == g]
@@ -149,13 +148,23 @@ else:
             st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
             
         with tab3:
+            st.subheader("Check Unpaid Students")
             c_month = st.selectbox("Check Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
             c_grade = st.selectbox("Check Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            
             if st.button("Generate Arrears List"):
                 all_s = pd.read_sql(f"SELECT name, whatsapp FROM students WHERE grade='{c_grade}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{c_month}' AND grade='{c_grade}'", conn)
-                arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
-                st.table(arrears) if not arrears.empty else st.success("All Paid!")
+                
+                paid_list = paid_s['student_name'].tolist()
+                arrears = all_s[~all_s['name'].isin(paid_list)]
+                
+                # පේළි කිහිපයකට වෙන් කර ලියන ලද නිවැරදි කොටස:
+                if not arrears.empty:
+                    st.warning(f"⚠️ {c_month} සඳහා ගෙවීම් නොකළ සිසුන් {len(arrears)} දෙනෙකි.")
+                    st.table(arrears)
+                else:
+                    st.success("සියලුම සිසුන් ගෙවීම් කර ඇත! ✅")
 
         with tab4:
             st.subheader("Remove Incorrect Records")
