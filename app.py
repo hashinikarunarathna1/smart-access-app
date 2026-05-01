@@ -78,11 +78,9 @@ else:
     conn = get_connection()
     months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    # --- 🚀 DASHBOARD (UPDATED) ---
+    # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
         st.title("System Overview")
-        
-        # දත්ත ලබාගැනීම
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
         all_exp = pd.read_sql("SELECT amount FROM expenses", conn)
@@ -191,7 +189,13 @@ else:
                 all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
                 arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
-                st.table(arrears) if not arrears.empty else st.success("All Paid!")
+                
+                # මෙන්න මෙතන තමයි වෙනස් කළේ:
+                if not arrears.empty:
+                    st.table(arrears)
+                else:
+                    st.success("All Paid!")
+                    
         with tab4:
             st.subheader("Remove Records")
             dt = st.radio("Type", ["Payments", "Students", "Expenses"])
