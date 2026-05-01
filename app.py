@@ -25,6 +25,9 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace;
         background-color: rgba(0, 0, 0, 0.05);
     }
+    .receipt-title {
+        color: #1a73e8; font-size: 28px; font-weight: bold; text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -54,7 +57,7 @@ if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
 if not st.session_state['logged_in']:
-    st.markdown("<h2 style='text-align: center; color: #1a73e8;'>🔐 Admin Login</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1a73e8;'>🔐 Smart Class Admin Login</h2>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         user = st.text_input("Username")
@@ -64,7 +67,7 @@ if not st.session_state['logged_in']:
                 st.session_state['logged_in'] = True
                 st.rerun()
             else:
-                st.error("Invalid Credentials")
+                st.error("වැරදි දත්ත ඇතුළත් කළා!")
 else:
     st.sidebar.title("💎 Smart Class Pro")
     choice = st.sidebar.radio("Main Menu", ["🚀 Dashboard", "📝 Registration", "💰 Payments", "💸 Cash Out", "📊 Reports"])
@@ -76,7 +79,7 @@ else:
     conn = get_connection()
     months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    # --- DASHBOARD ---
+    # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
         st.title("System Overview")
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
@@ -92,11 +95,51 @@ else:
         m3.metric("Net Balance", f"Rs. {max(0, net):,.2f}")
         
         st.divider()
-        st.subheader("Monthly Revenue (Student Payments)")
+        st.subheader("📅 Monthly Revenue (Student Payments)")
         if not all_pay.empty:
             st.table(pd.read_sql("SELECT month, SUM(amount) as Total FROM payments GROUP BY month", conn))
+        else:
+            st.info("තවමත් ගෙවීම් දත්ත නැත.")
 
-    # --- CASH OUT (Targeted) ---
+    # --- 📝 REGISTRATION ---
+    elif choice == "📝 Registration":
+        st.title("New Student Registration")
+        with st.form("reg_form", clear_on_submit=True):
+            name = st.text_input("Student Name")
+            school = st.text_input("School")
+            grade = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            wa = st.text_input("WhatsApp Number (e.g. 94771234567)")
+            if st.form_submit_button("Register"):
+                if name and wa:
+                    conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
+                    conn.commit()
+                    st.success(f"{name} ලියාපදිංචි කිරීම සාර්ථකයි!")
+
+    # --- 💰 PAYMENTS (With WhatsApp Button) ---
+    elif choice == "💰 Payments":
+        st.title("Payment Gateway")
+        search = st.text_input("Search Student Name")
+        if search:
+            res = pd.read_sql(f"SELECT * FROM students WHERE name LIKE '%{search}%'", conn)
+            if not res.empty:
+                st.dataframe(res)
+                s_name = st.selectbox("Confirm Student Name", res['name'].tolist())
+                s_info = res[res['name'] == s_name].iloc[0]
+                month = st.selectbox("Payment Month", months_list)
+                amt = st.number_input("Amount", min_value=0.0, value=1500.0)
+                if st.button("Submit Payment"):
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", (s_name, s_info['grade'], month, amt, date_str))
+                    conn.commit()
+                    
+                    # Receipt UI
+                    st.markdown(f'<div class="receipt-container"><div class="receipt-title">🎓 SMART CLASS</div><p style="text-align:center;">Date: {date_str}<br>Name: {s_name}<br>Month: {month}<br>Amount: Rs.{amt:,.2f}</p></div>', unsafe_allow_html=True)
+                    
+                    # WhatsApp Receipt Button
+                    wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
+                    st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
+
+    # --- 💸 CASH OUT ---
     elif choice == "💸 Cash Out":
         st.title("💸 Targeted Cash Out")
         col1, col2 = st.columns(2)
@@ -109,7 +152,7 @@ else:
             with st.form("co_form", clear_on_submit=True):
                 desc = st.text_input("Reason")
                 amt = st.number_input("Amount", min_value=0.0)
-                if st.form_submit_button("Confirm"):
+                if st.form_submit_button("Confirm Cash Out"):
                     if amt > m_income:
                         st.error("වැඩියෙන් මුදල් ගන්න බැහැ!")
                     elif desc and amt > 0:
@@ -119,44 +162,44 @@ else:
                         st.success("Cash Out Success!")
                         st.rerun()
         
-        st.subheader("History")
+        st.subheader("📜 History")
         st.dataframe(pd.read_sql("SELECT * FROM expenses ORDER BY id DESC", conn), use_container_width=True)
 
-    # (Registration, Payments, Reports කොටස් ද මේ ආකාරයටම පවතී)
-    elif choice == "📝 Registration":
-        with st.form("reg"):
-            n = st.text_input("Name"); s = st.text_input("School")
-            g = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
-            w = st.text_input("WhatsApp")
-            if st.form_submit_button("Save"):
-                conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (n,s,g,w))
-                conn.commit(); st.success("Saved!")
-
-    elif choice == "💰 Payments":
-        search = st.text_input("Search Name")
-        if search:
-            res = pd.read_sql(f"SELECT * FROM students WHERE name LIKE '%{search}%'", conn)
-            if not res.empty:
-                s_name = st.selectbox("Confirm Student", res['name'].tolist())
-                month = st.selectbox("Month", months_list)
-                amt = st.number_input("Amount", value=1500.0)
-                if st.button("Pay"):
-                    conn.execute("INSERT INTO payments (student_name, grade, month, amount, date) VALUES (?,?,?,?,?)", 
-                                 (s_name, res[res['name']==s_name]['grade'].values[0], month, amt, datetime.now().strftime("%Y-%m-%d")))
-                    conn.commit(); st.success("Paid!")
-
+    # --- 📊 REPORTS ---
     elif choice == "📊 Reports":
-        t1, t2, t3, t4 = st.tabs(["Students", "Payments", "Arrears", "Delete"])
-        with t1: st.dataframe(pd.read_sql("SELECT * FROM students", conn), use_container_width=True)
-        with t2: st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
-        with t3:
-            cm = st.selectbox("Month", months_list); cg = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
-            if st.button("Check"):
+        st.title("Reports & Management")
+        tab1, tab2, tab3, tab4 = st.tabs(["👥 Students", "📄 Payments", "🔴 Arrears", "🗑️ Delete"])
+        
+        with tab1:
+            df_std = pd.read_sql("SELECT * FROM students", conn)
+            if not df_std.empty:
+                for g in ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"]:
+                    g_data = df_std[df_std['grade'] == g]
+                    if not g_data.empty:
+                        with st.expander(f"📂 {g} - ({len(g_data)})"):
+                            st.dataframe(g_data, use_container_width=True)
+        
+        with tab2:
+            st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
+            
+        with tab3:
+            cm = st.selectbox("Month", months_list)
+            cg = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            if st.button("Check Arrears"):
                 all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
-                st.table(all_s[~all_s['name'].isin(paid_s['student_name'].tolist())])
-        with t4:
+                arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
+                if not arrears.empty:
+                    st.table(arrears)
+                else:
+                    st.success("All Paid!")
+                    
+        with tab4:
+            st.subheader("Remove Records")
             dt = st.radio("Type", ["Payments", "Students", "Expenses"])
             di = st.number_input("ID", min_value=1)
             if st.button("Delete"):
-                conn.execute(f"DELETE FROM {dt.lower()} WHERE id={di}"); conn.commit(); st.rerun()
+                conn.execute(f"DELETE FROM {dt.lower()} WHERE id={di}")
+                conn.commit()
+                st.warning(f"Deleted ID {di} from {dt}")
+                st.rerun()
