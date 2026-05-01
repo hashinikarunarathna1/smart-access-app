@@ -99,7 +99,7 @@ else:
             with c1:
                 st.table(monthly_totals)
             with c2:
-                st.info("current month amount.")
+                st.info("මෙහි දැක්වෙන්නේ එක් එක් මාසයට අදාළව සිසුන්ගෙන් ලැබුණු මුළු ආදායමයි.")
         else:
             st.info("තවමත් ගෙවීම් දත්ත ඇතුළත් කර නැත.")
 
