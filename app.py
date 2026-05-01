@@ -92,7 +92,7 @@ else:
         m1, m2, m3 = st.columns(3)
         m1.metric("Total Income", f"Rs. {income:,.2f}")
         m2.metric("Total Cash Out", f"Rs. {expense:,.2f}")
-        m3.metric("Net Balance", f"Rs. {max(0, net):,.2f}")
+        m3.metric("Net Balance", f"Rs. {net:,.2f}") # සෘණ අගයන් බලාගැනීම සඳහා max(0, net) ඉවත් කළා
         
         st.divider()
         st.subheader("📅 Monthly Revenue (Student Payments)")
@@ -115,7 +115,7 @@ else:
                     conn.commit()
                     st.success(f"{name} ලියාපදිංචි කිරීම සාර්ථකයි!")
 
-    # --- 💰 PAYMENTS (With WhatsApp Button) ---
+    # --- 💰 PAYMENTS ---
     elif choice == "💰 Payments":
         st.title("Payment Gateway")
         search = st.text_input("Search Student Name")
@@ -139,22 +139,28 @@ else:
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
-    # --- 💸 CASH OUT ---
+    # --- 💸 CASH OUT (Targeted with Remaining Balance) ---
     elif choice == "💸 Cash Out":
         st.title("💸 Targeted Cash Out")
         col1, col2 = st.columns(2)
         with col1:
             t_month = st.selectbox("Select Month to Withdraw from", months_list)
+            
+            # මාසයට අදාළ ඉතිරි මුදල ගණනය කිරීම
             m_income = pd.read_sql(f"SELECT SUM(amount) as total FROM payments WHERE month='{t_month}'", conn).iloc[0,0] or 0.0
-            st.info(f"Available for {t_month}: **Rs. {m_income:,.2f}**")
+            m_expenses = pd.read_sql(f"SELECT SUM(amount) as total FROM expenses WHERE target_month='{t_month}'", conn).iloc[0,0] or 0.0
+            remaining_balance = m_income - m_expenses
+            
+            st.info(f"Available for {t_month}: **Rs. {remaining_balance:,.2f}**")
+            st.caption(f"(Total Income: Rs. {m_income:,.2f} | Already Cashed Out: Rs. {m_expenses:,.2f})")
         
         with col2:
             with st.form("co_form", clear_on_submit=True):
                 desc = st.text_input("Reason")
                 amt = st.number_input("Amount", min_value=0.0)
                 if st.form_submit_button("Confirm Cash Out"):
-                    if amt > m_income:
-                        st.error("වැඩියෙන් මුදල් ගන්න බැහැ!")
+                    if amt > remaining_balance:
+                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ! {t_month} සඳහා ඉතිරිව ඇත්තේ රු. {remaining_balance} කි.")
                     elif desc and amt > 0:
                         conn.execute("INSERT INTO expenses (description, amount, date, target_month) VALUES (?,?,?,?)", 
                                      (desc, amt, datetime.now().strftime("%Y-%m-%d %H:%M"), t_month))
@@ -201,5 +207,4 @@ else:
             if st.button("Delete"):
                 conn.execute(f"DELETE FROM {dt.lower()} WHERE id={di}")
                 conn.commit()
-                st.warning(f"Deleted ID {di} from {dt}")
                 st.rerun()
