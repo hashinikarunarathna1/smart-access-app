@@ -51,6 +51,9 @@ def init_db():
 
 init_db()
 
+# Global variables for grades
+GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel"]
+
 # --- 3. APP LOGIC ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -107,7 +110,7 @@ else:
         with st.form("reg_form", clear_on_submit=True):
             name = st.text_input("Student Name")
             school = st.text_input("School")
-            grade = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            grade = st.selectbox("Grade", GRADES) # යාවත්කාලීන කළ ලැයිස්තුව
             wa = st.text_input("WhatsApp Number")
             if st.form_submit_button("Register"):
                 if name and wa:
@@ -175,7 +178,7 @@ else:
         with tab1:
             df_std = pd.read_sql("SELECT * FROM students", conn)
             if not df_std.empty:
-                for g in ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"]:
+                for g in GRADES: # යාවත්කාලීන කළ ලැයිස්තුව
                     g_data = df_std[df_std['grade'] == g]
                     if not g_data.empty:
                         with st.expander(f"📂 {g} - ({len(g_data)})"):
@@ -184,13 +187,12 @@ else:
             st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
         with tab3:
             cm = st.selectbox("Month", months_list)
-            cg = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            cg = st.selectbox("Grade", GRADES) # යාවත්කාලීන කළ ලැයිස්තුව
             if st.button("Check Arrears"):
                 all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
                 arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
                 
-                # මෙන්න මෙතන තමයි වෙනස් කළේ:
                 if not arrears.empty:
                     st.table(arrears)
                 else:
