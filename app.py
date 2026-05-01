@@ -38,18 +38,10 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # Students table එක නිර්මාණය (course column එක සමඟ)
-    cursor.execute('CREATE TABLE IF NOT EXISTS students (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, course TEXT, whatsapp TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS students (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, whatsapp TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, amount REAL, date TEXT, target_month TEXT)')
     
-    # පරණ ඩේටාබේස් එකට course column එක නැත්නම් එකතු කිරීම (Migration)
-    try:
-        cursor.execute("SELECT course FROM students LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute('ALTER TABLE students ADD COLUMN course TEXT')
-        conn.commit()
-
     try:
         cursor.execute("SELECT target_month FROM expenses LIMIT 1")
     except sqlite3.OperationalError:
@@ -59,9 +51,8 @@ def init_db():
 
 init_db()
 
-# විකල්ප ලැයිස්තු
-GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel"]
-COURSES = ["Office Package", "ICT", "Python", "Networking", "Web Design", "Graphic Design", "Other"]
+# ශ්‍රේණි ලැයිස්තුව (Office Package එකතු කරන ලදී)
+GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel", "Office Package"]
 
 # --- 3. APP LOGIC ---
 if 'logged_in' not in st.session_state:
@@ -93,7 +84,7 @@ else:
     # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
         st.title("System Overview")
-        total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0] # Student Count එක පෙන්වීමට
+        total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
         all_exp = pd.read_sql("SELECT amount FROM expenses", conn)
         
@@ -113,22 +104,21 @@ else:
         else:
             st.info("තවමත් ගෙවීම් දත්ත නැත.")
 
-    # --- 📝 REGISTRATION (Updated with Course & Office Package) ---
+    # --- 📝 REGISTRATION (Updated) ---
     elif choice == "📝 Registration":
         st.title("New Student Registration")
         with st.form("reg_form", clear_on_submit=True):
             name = st.text_input("Student Name")
             school = st.text_input("School")
-            grade = st.selectbox("Grade", GRADES)
-            course = st.selectbox("Course", COURSES) # අලුතින් එකතු කළ කොටස
+            grade = st.selectbox("Grade", GRADES) # Office Package එක මේ ලැයිස්තුවේ ඇත
             wa = st.text_input("WhatsApp Number")
             if st.form_submit_button("Register"):
                 if name and wa:
-                    conn.execute("INSERT INTO students (name, school, grade, course, whatsapp) VALUES (?,?,?,?,?)", (name, school, grade, course, wa))
+                    conn.execute("INSERT INTO students (name, school, grade, whatsapp) VALUES (?,?,?,?)", (name, school, grade, wa))
                     conn.commit()
-                    st.success(f"{name} ({course}) ලියාපදිංචි කිරීම සාර්ථකයි!")
+                    st.success(f"{name} ලියාපදිංචි කිරීම සාර්ථකයි!")
 
-    # --- 💰 PAYMENTS (With WhatsApp Receipt) ---
+    # --- 💰 PAYMENTS ---
     elif choice == "💰 Payments":
         st.title("Payment Gateway")
         search = st.text_input("Search Student Name")
@@ -147,18 +137,15 @@ else:
                     
                     st.markdown(f'<div class="receipt-container"><div class="receipt-title">🎓 SMART CLASS</div><p style="text-align:center;">Date: {date_str}<br>Name: {s_name}<br>Month: {month}<br>Amount: Rs.{amt:,.2f}</p></div>', unsafe_allow_html=True)
                     
-                    # WhatsApp Receipt පහසුකම
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
-    # --- 💸 CASH OUT (With Remaining Balance Limit) ---
+    # --- 💸 CASH OUT ---
     elif choice == "💸 Cash Out":
         st.title("💸 Targeted Cash Out")
         col1, col2 = st.columns(2)
         with col1:
             t_month = st.selectbox("Select Month to Withdraw from", months_list)
-            
-            # මාසයට අදාළ ඉතිරි මුදල ගණනය කිරීම
             m_income = pd.read_sql(f"SELECT SUM(amount) as total FROM payments WHERE month='{t_month}'", conn).iloc[0,0] or 0.0
             m_expenses = pd.read_sql(f"SELECT SUM(amount) as total FROM expenses WHERE target_month='{t_month}'", conn).iloc[0,0] or 0.0
             remaining_balance = m_income - m_expenses
@@ -171,8 +158,8 @@ else:
                 desc = st.text_input("Reason")
                 amt = st.number_input("Amount", min_value=0.0)
                 if st.form_submit_button("Confirm Cash Out"):
-                    if amt > remaining_balance: # ලිමිට් එකට වඩා මුදල් ගැනීමට නොහැක
-                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ! {t_month} සඳහා ඉතිරිව ඇත්තේ රු. {remaining_balance} කි.")
+                    if amt > remaining_balance:
+                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ!")
                     elif desc and amt > 0:
                         conn.execute("INSERT INTO expenses (description, amount, date, target_month) VALUES (?,?,?,?)", (desc, amt, datetime.now().strftime("%Y-%m-%d %H:%M"), t_month))
                         conn.commit()
@@ -204,13 +191,10 @@ else:
                 all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
                 arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
-                
-                # පෙන්වීම
                 if not arrears.empty:
                     st.table(arrears)
                 else:
                     st.success("All Paid!")
-                    
         with tab4:
             st.subheader("Remove Records")
             dt = st.radio("Type", ["Payments", "Students", "Expenses"])
