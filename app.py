@@ -71,16 +71,39 @@ else:
 
     conn = get_connection()
 
+    # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
         st.title("System Overview")
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_payments_df = pd.read_sql("SELECT * FROM payments", conn)
+        
         rev_total = all_payments_df['amount'].sum() if not all_payments_df.empty else 0
+        
         m1, m2, m3 = st.columns(3)
         m1.metric("Total Students", total_students)
         m2.metric("Overall Revenue", f"Rs. {rev_total:,.2f}")
         m3.metric("Status", "Online")
+        
+        st.divider()
+        
+        # --- අලුතින් එකතු කළ MONTHLY TOTAL SECTION ---
+        st.subheader("📅 Monthly Revenue Breakdown")
+        if not all_payments_df.empty:
+            # මාසය අනුව දත්ත ගොනු කර මුළු මුදල ගණනය කිරීම
+            monthly_totals = all_payments_df.groupby('month')['amount'].sum().reset_index()
+            # පෙන්වන නම වෙනස් කිරීම
+            monthly_totals.columns = ['Month', 'Total Revenue (Rs.)']
+            
+            # ලස්සනට පෙන්වීමට columns දෙකක් පාවිච්චි කරමු
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                st.table(monthly_totals)
+            with c2:
+                st.info("මෙහි දැක්වෙන්නේ එක් එක් මාසයට අදාළව සිසුන්ගෙන් ලැබුණු මුළු ආදායමයි.")
+        else:
+            st.info("තවමත් ගෙවීම් දත්ත ඇතුළත් කර නැත.")
 
+    # --- 📝 REGISTRATION ---
     elif choice == "📝 Registration":
         st.title("New Student Registration")
         with st.form("reg_form", clear_on_submit=True):
@@ -94,6 +117,7 @@ else:
                     conn.commit()
                     st.success(f"{name} ලියාපදිංචි කිරීම සාර්ථකයි!")
 
+    # --- 💰 PAYMENTS ---
     elif choice == "💰 Payments":
         st.title("Payment Gateway")
         search = st.text_input("Search Student Name")
@@ -113,6 +137,7 @@ else:
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
+    # --- 📊 REPORTS ---
     elif choice == "📊 Reports":
         st.title("Reports & Management")
         tab1, tab2, tab3, tab4 = st.tabs(["Student List", "Payment Logs", "🔴 Arrears List", "🗑️ Delete Records"])
