@@ -40,7 +40,6 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS students (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, grade TEXT, whatsapp TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)')
-    # අලුතින් එක් කළ Expense Table එක
     cursor.execute('CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, amount REAL, date TEXT)')
     conn.commit()
 
@@ -63,7 +62,6 @@ if not st.session_state['logged_in']:
             else:
                 st.error("වැරදි දත්ත ඇතුළත් කළා!")
 else:
-    # මෙනු එකට "Cash Out" එකතු කළා
     st.sidebar.title("💎 Smart Class Pro")
     choice = st.sidebar.radio("Main Menu", ["🚀 Dashboard", "📝 Registration", "💰 Payments", "💸 Cash Out", "📊 Reports"])
     
@@ -82,23 +80,56 @@ else:
         
         rev_total = all_payments_df['amount'].sum() if not all_payments_df.empty else 0
         exp_total = all_expenses_df['amount'].sum() if not all_expenses_df.empty else 0
-        net_profit = rev_total - exp_total
+        net_balance = rev_total - exp_total # Cash out අඩුවූ පසු ඉතිරිය
         
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
         m1.metric("Total Students", total_students)
-        m2.metric("Total Income", f"Rs. {rev_total:,.2f}")
-        m3.metric("Total Expenses", f"Rs. {exp_total:,.2f}")
-        m4.metric("Net Profit", f"Rs. {net_profit:,.2f}")
+        m2.metric("Net Total (After Cash-out)", f"Rs. {net_balance:,.2f}") #
+        m3.metric("Status", "Online")
         
         st.divider()
-        st.subheader("📅 Monthly Revenue Breakdown")
+        st.subheader("📅 Monthly Revenue Breakdown (Student Payments)")
         if not all_payments_df.empty:
+            # මෙතන පෙන්වන්නේ සිසුන් ගෙවූ මුළු මුදල පමණයි (Cash-out මෙයට බලපාන්නේ නැත)
             monthly_totals = all_payments_df.groupby('month')['amount'].sum().reset_index()
-            st.table(monthly_totals)
+            monthly_totals.columns = ['Month', 'Student Payments (Rs.)']
+            st.table(monthly_totals) #
         else:
             st.info("තවමත් ගෙවීම් දත්ත නැත.")
 
-    # --- 📝 REGISTRATION ---
+    # --- 💸 CASH OUT SECTION ---
+    elif choice == "💸 Cash Out":
+        st.title("💸 Cash Out & Payment Summary")
+        
+        # 1. පන්ති ගාස්තු මාස අනුව පෙන්වීම
+        st.subheader("📊 Monthly Student Payment Summary")
+        all_pay = pd.read_sql("SELECT month, amount FROM payments", conn)
+        if not all_pay.empty:
+            summary = all_pay.groupby('month')['amount'].sum().reset_index()
+            summary.columns = ['Month', 'Total Collected (Rs.)']
+            st.dataframe(summary, use_container_width=True) #
+        else:
+            st.info("ගෙවීම් වාර්තා නැත.")
+            
+        st.divider()
+
+        # 2. Cash Out කිරීම
+        st.subheader("📉 Record New Cash Out")
+        with st.form("cash_out_form", clear_on_submit=True):
+            desc = st.text_input("Reason / Description (e.g. Hall Fee)")
+            amt = st.number_input("Amount to Cash Out (Rs.)", min_value=0.0)
+            if st.form_submit_button("Confirm Cash Out"):
+                if desc and amt > 0:
+                    date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    conn.execute("INSERT INTO expenses (description, amount, date) VALUES (?,?,?)", (desc, amt, date_now))
+                    conn.commit()
+                    st.success(f"රු. {amt} ක මුදලක් Cash Out කළා. මෙය Overall Balance එකෙන් අඩු වනු ඇත.") #
+        
+        # 3. පරණ Cash Out වාර්තා
+        st.subheader("📜 Cash Out History")
+        st.dataframe(pd.read_sql("SELECT * FROM expenses ORDER BY id DESC", conn), use_container_width=True)
+
+    # --- අනිත් සියලුම කොටස් (Registration, Payments, Reports) කලින් තිබූ පරිදිම ---
     elif choice == "📝 Registration":
         st.title("New Student Registration")
         with st.form("reg_form", clear_on_submit=True):
@@ -112,7 +143,6 @@ else:
                     conn.commit()
                     st.success(f"{name} ලියාපදිංචි කිරීම සාර්ථකයි!")
 
-    # --- 💰 PAYMENTS ---
     elif choice == "💰 Payments":
         st.title("Payment Gateway")
         search = st.text_input("Search Student Name")
@@ -132,26 +162,9 @@ else:
                     wa_msg = f"🎓 *SMART CLASS RECEIPT*\n\n👤 Name: {s_name}\n🗓️ Month: {month}\n💰 Amount: Rs. {amt:,.2f}\n✅ Recorded."
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
-    # --- 💸 CASH OUT (NEW) ---
-    elif choice == "💸 Cash Out":
-        st.title("Expense Management (Cash Out)")
-        with st.form("expense_form", clear_on_submit=True):
-            desc = st.text_input("Expense Description (e.g. Hall Fee, Printing)")
-            amount = st.number_input("Amount (Rs.)", min_value=0.0)
-            if st.form_submit_button("Record Expense"):
-                if desc and amount > 0:
-                    date_now = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    conn.execute("INSERT INTO expenses (description, amount, date) VALUES (?,?,?)", (desc, amount, date_now))
-                    conn.commit()
-                    st.success(f"රු. {amount} ක වියදම වාර්තා කළා!")
-        
-        st.subheader("Recent Expenses")
-        st.dataframe(pd.read_sql("SELECT * FROM expenses ORDER BY id DESC", conn), use_container_width=True)
-
-    # --- 📊 REPORTS ---
     elif choice == "📊 Reports":
         st.title("Reports & Management")
-        tab1, tab2, tab3, tab4 = st.tabs(["👥 Students", "📄 Payments", "🔴 Arrears", "🗑️ Delete"])
+        tab1, tab2, tab3, tab4 = st.tabs(["👥 Student List", "📄 Payment Logs", "🔴 Arrears", "🗑️ Delete"])
         
         with tab1:
             df_std = pd.read_sql("SELECT * FROM students", conn)
@@ -167,24 +180,23 @@ else:
             st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
             
         with tab3:
-            c_month = st.selectbox("Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
-            c_grade = st.selectbox("Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
-            if st.button("Generate Arrears"):
-                all_s = pd.read_sql(f"SELECT name, whatsapp FROM students WHERE grade='{c_grade}'", conn)
+            c_month = st.selectbox("Check Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+            c_grade = st.selectbox("Check Grade", ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory"])
+            if st.button("Generate Arrears List"):
+                all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{c_grade}'", conn)
                 paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{c_month}' AND grade='{c_grade}'", conn)
                 arr = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
                 if not arr.empty:
-                    st.warning(f"{len(arr)} Unpaid")
+                    st.warning(f"Unpaid: {len(arr)}")
                     st.table(arr)
                 else: st.success("All Paid!")
 
         with tab4:
             st.subheader("Remove Records")
             del_type = st.radio("Delete from:", ["Payments", "Students", "Expenses"])
-            del_id = st.number_input("ID to Delete", min_value=1, step=1)
-            if st.button("Delete Now", type="primary"):
+            del_id = st.number_input("Enter ID", min_value=1, step=1)
+            if st.button("Delete"):
                 tbl = "payments" if del_type=="Payments" else "students" if del_type=="Students" else "expenses"
                 conn.execute(f"DELETE FROM {tbl} WHERE id={del_id}")
                 conn.commit()
-                st.warning(f"Deleted ID {del_id}")
                 st.rerun()
