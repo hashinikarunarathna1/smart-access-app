@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import datetime
 
 # --- 1. CONFIG & STYLING ---
-st.set_page_config(page_title="Smart Class Pro", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="Smart Class ", page_icon="🎓", layout="wide")
 
 st.markdown("""
     <style>
