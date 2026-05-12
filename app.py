@@ -33,7 +33,6 @@ st.markdown("""
 
 # --- 2. DATABASE SETUP ---
 def get_connection():
-    # මෙහිදී දත්ත "smart_class_v10.db" යන ෆයිල් එකේ සේව් වේ
     return sqlite3.connect("smart_class_v10.db", check_same_thread=False)
 
 def init_db():
@@ -43,7 +42,6 @@ def init_db():
     cursor.execute('CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT, grade TEXT, month TEXT, amount REAL, date TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT, amount REAL, date TEXT, target_month TEXT)')
     
-    # පරණ database එකක් ඇත්නම් target_month column එක එකතු කිරීම
     try:
         cursor.execute("SELECT target_month FROM expenses LIMIT 1")
     except sqlite3.OperationalError:
@@ -53,8 +51,8 @@ def init_db():
 
 init_db()
 
+# ශ්‍රේණි ලැයිස්තුව (Office Package එකතු කරන ලදී)
 GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel", "Office Package"]
-months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 # --- 3. APP LOGIC ---
 if 'logged_in' not in st.session_state:
@@ -67,7 +65,7 @@ if not st.session_state['logged_in']:
         user = st.text_input("Username")
         pw = st.text_input("Password", type="password")
         if st.button("Login"):
-            if user == "admin" and pw == "hash@":
+            if user == "admin" and pw == "1234":
                 st.session_state['logged_in'] = True
                 st.rerun()
             else:
@@ -81,6 +79,7 @@ else:
         st.rerun()
 
     conn = get_connection()
+    months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
     # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
@@ -105,13 +104,13 @@ else:
         else:
             st.info("තවමත් ගෙවීම් දත්ත නැත.")
 
-    # --- 📝 REGISTRATION ---
+    # --- 📝 REGISTRATION (Updated) ---
     elif choice == "📝 Registration":
         st.title("New Student Registration")
         with st.form("reg_form", clear_on_submit=True):
             name = st.text_input("Student Name")
             school = st.text_input("School")
-            grade = st.selectbox("Grade", GRADES)
+            grade = st.selectbox("Grade", GRADES) # Office Package එක මේ ලැයිස්තුවේ ඇත
             wa = st.text_input("WhatsApp Number")
             if st.form_submit_button("Register"):
                 if name and wa:
@@ -150,7 +149,9 @@ else:
             m_income = pd.read_sql(f"SELECT SUM(amount) as total FROM payments WHERE month='{t_month}'", conn).iloc[0,0] or 0.0
             m_expenses = pd.read_sql(f"SELECT SUM(amount) as total FROM expenses WHERE target_month='{t_month}'", conn).iloc[0,0] or 0.0
             remaining_balance = m_income - m_expenses
+            
             st.info(f"Available for {t_month}: **Rs. {remaining_balance:,.2f}**")
+            st.caption(f"(Total Income: Rs. {m_income:,.2f} | Already Cashed Out: Rs. {m_expenses:,.2f})")
         
         with col2:
             with st.form("co_form", clear_on_submit=True):
