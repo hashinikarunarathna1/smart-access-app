@@ -7,14 +7,57 @@ from datetime import datetime
 # --- 1. CONFIG & STYLING ---
 st.set_page_config(page_title="Smart Class Pro", page_icon="🎓", layout="wide")
 
-# Dashboard UI එක සහ Metrics Cards වඩාත් ආකර්ෂණීය කිරීමට CSS ඇතුළත් කිරීම
 st.markdown("""
     <style>
-    /* Metric Cards Styling */
+    /* ------ SIDEBAR NAVIGATION STYLING ------ */
+    /* Main Menu මාතෘකාව ලස්සන කිරීම */
+    div[data-testid="stSidebarNav"] + div p {
+        font-weight: bold !important;
+        color: #a0aec0 !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 13px;
+        margin-bottom: 15px;
+    }
+    /* Radio options අතර පරතරය */
+    div[data-testid="stRadio"] > div {
+        gap: 8px !important;
+    }
+    /* සාමාන්‍ය Tab එකක පෙනුම */
+    div[data-testid="stRadio"] label {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        padding: 14px 16px !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        transition: all 0.2s ease-in-out !important;
+        width: 100% !important;
+        color: #e2e8f0 !important;
+    }
+    /* මවුස් එක උඩට ගිය විට පෙනුම (Hover) */
+    div[data-testid="stRadio"] label:hover {
+        background-color: rgba(28, 131, 225, 0.15) !important;
+        border-color: #1a73e8 !important;
+    }
+    /* ක්ලික් කර Active වී ඇති Tab එකේ පෙනුම */
+    div[data-testid="stRadio"] div[role="radiogroup"] > label[data-aria-checked="true"] {
+        background: linear-gradient(90deg, #1a73e8 0%, #34a853 100%) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35) !important;
+    }
+    /* රේඩියෝ බොත්තමේ රවුම අයින් කිරීම */
+    div[data-testid="stRadio"] div[role="radiogroup"] > label > div:first-child {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] label div[data-testid="stMarkdownContainer"] p {
+        font-size: 16px !important;
+    }
+
+    /* ------ DASHBOARD METRICS & BUTTONS ------ */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
-        padding: 24px !important; 
-        border-radius: 16px !important;
+        padding: 24px !important; border-radius: 16px !important;
         border: 1px solid #e2e8f0;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         transition: transform 0.2s;
@@ -23,7 +66,6 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
     }
-    /* Metric Labels & Values */
     div[data-testid="stMetricLabel"] {
         color: #4a5568 !important;
         font-size: 14px !important;
@@ -32,27 +74,20 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
     div[data-testid="stMetricValue"] {
-        color: #1a73e8 !important;
-        font-size: 28px !important;
-        font-weight: 700 !important;
+        color: #1a73e8 !important; font-size: 28px !important; font-weight: 700 !important;
     }
-    /* Common Button Styling */
     .stButton>button {
         width: 100%; border-radius: 10px; height: 3.5em;
         background: linear-gradient(90deg, #1a73e8 0%, #34a853 100%); 
-        color: white !important;
-        font-weight: bold; border: none;
+        color: white !important; font-weight: bold; border: none;
         box-shadow: 0 4px 6px rgba(26, 115, 232, 0.2);
     }
     .stButton>button:hover {
         background: linear-gradient(90deg, #1557b0 0%, #2b843f 100%);
     }
-    /* Receipt Styling */
     .receipt-container {
-        border: 2px dashed #1a73e8; border-radius: 16px;
-        padding: 25px; margin: 20px auto; max-width: 500px;
-        font-family: 'Courier New', Courier, monospace;
-        background-color: #f8f9fa;
+        border: 2px dashed #1a73e8; border-radius: 16px; padding: 25px; margin: 20px auto; max-width: 500px;
+        font-family: 'Courier New', Courier, monospace; background-color: #f8f9fa;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .receipt-title {
@@ -82,6 +117,7 @@ def init_db():
 
 init_db()
 
+# ශ්‍රේණි ලැයිස්තුව
 GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel", "Office Package"]
 
 # --- 3. APP LOGIC ---
@@ -111,13 +147,12 @@ else:
     conn = get_connection()
     months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    # --- 🚀 DASHBOARD (UPDATED DESIGN) ---
+    # --- 🚀 DASHBOARD ---
     if choice == "🚀 Dashboard":
         st.markdown("<h1 style='color: #1a73e8;'>🚀 System Overview & Analytics</h1>", unsafe_allow_html=True)
         st.markdown("<p style='color: #718096;'>ආයතනයේ වත්මන් තත්ත්වය සහ මූල්‍ය විශ්ලේෂණය මෙතැනින් බලන්න.</p>", unsafe_allow_html=True)
         st.write("")
 
-        # දත්ත ලබා ගැනීම
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
         all_exp = pd.read_sql("SELECT amount FROM expenses", conn)
@@ -126,26 +161,21 @@ else:
         expense = all_exp['amount'].sum() if not all_exp.empty else 0
         net = income - expense
         
-        # 3-Column Metrics Card Layout
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(label="👥 TOTAL REGISTERED STUDENTS", value=f"{total_students} Students")
         with m2:
             st.metric(label="💸 TOTAL CASH OUT (EXPENSES)", value=f"Rs. {expense:,.2f}")
         with m3:
-            # ශේෂය ධන හෝ සෘණ ද යන්න මත වර්ණය වෙනස් කිරීමට (UI එකට ගැළපෙන සේ)
             st.metric(label="📈 NET BALANCE (PROFIT)", value=f"Rs. {net:,.2f}")
         
         st.write("")
         st.divider()
         st.write("")
         
-        # මාසික ආදායම් වගුව ලස්සනට පෙන්වීම
         st.markdown("<h3 style='color: #2d3748;'>📅 Monthly Revenue Summary</h3>", unsafe_allow_html=True)
-        
         if not all_pay.empty:
             df_monthly = pd.read_sql("SELECT month as 'Month', SUM(amount) as 'Total Income (Rs.)' FROM payments GROUP BY month", conn)
-            # වගුවේ පෙනුම සකස් කිරීම
             st.dataframe(
                 df_monthly.style.format({'Total Income (Rs.)': 'Rs. {:,.2f}'}),
                 use_container_width=True,
@@ -191,65 +221,3 @@ else:
                     st.markdown(f'<a href="https://wa.me/{s_info["whatsapp"]}?text={urllib.parse.quote(wa_msg)}" target="_blank"><button style="background-color:#25d366; color:white; width:100%; border-radius:10px; padding:10px; border:none; cursor:pointer;">📲 Send WhatsApp Receipt</button></a>', unsafe_allow_html=True)
 
     # --- 💸 CASH OUT ---
-    elif choice == "💸 Cash Out":
-        st.title("💸 Targeted Cash Out")
-        col1, col2 = st.columns(2)
-        with col1:
-            t_month = st.selectbox("Select Month to Withdraw from", months_list)
-            m_income = pd.read_sql(f"SELECT SUM(amount) as total FROM payments WHERE month='{t_month}'", conn).iloc[0,0] or 0.0
-            m_expenses = pd.read_sql(f"SELECT SUM(amount) as total FROM expenses WHERE target_month='{t_month}'", conn).iloc[0,0] or 0.0
-            remaining_balance = m_income - m_expenses
-            
-            st.info(f"Available for {t_month}: **Rs. {remaining_balance:,.2f}**")
-            st.caption(f"(Total Income: Rs. {m_income:,.2f} | Already Cashed Out: Rs. {m_expenses:,.2f})")
-        
-        with col2:
-            with st.form("co_form", clear_on_submit=True):
-                desc = st.text_input("Reason")
-                amt = st.number_input("Amount", min_value=0.0)
-                if st.form_submit_button("Confirm Cash Out"):
-                    if amt > remaining_balance:
-                        st.error(f"වැඩියෙන් මුදල් ගන්න බැහැ!")
-                    elif desc and amt > 0:
-                        conn.execute("INSERT INTO expenses (description, amount, date, target_month) VALUES (?,?,?,?)", (desc, amt, datetime.now().strftime("%Y-%m-%d %H:%M"), t_month))
-                        conn.commit()
-                        st.success("Cash Out Success!")
-                        st.rerun()
-        
-        st.subheader("📜 History")
-        st.dataframe(pd.read_sql("SELECT * FROM expenses ORDER BY id DESC", conn), use_container_width=True)
-
-    # --- 📊 REPORTS ---
-    elif choice == "📊 Reports":
-        st.title("Reports & Management")
-        tab1, tab2, tab3, tab4 = st.tabs(["👥 Students", "📄 Payments", "🔴 Arrears", "🗑️ Delete"])
-        
-        with tab1:
-            df_std = pd.read_sql("SELECT * FROM students", conn)
-            if not df_std.empty:
-                for g in GRADES:
-                    g_data = df_std[df_std['grade'] == g]
-                    if not g_data.empty:
-                        with st.expander(f"📂 {g} - ({len(g_data)})"):
-                            st.dataframe(g_data, use_container_width=True)
-        with tab2:
-            st.dataframe(pd.read_sql("SELECT * FROM payments", conn), use_container_width=True)
-        with tab3:
-            cm = st.selectbox("Month", months_list)
-            cg = st.selectbox("Grade", GRADES)
-            if st.button("Check Arrears"):
-                all_s = pd.read_sql(f"SELECT name FROM students WHERE grade='{cg}'", conn)
-                paid_s = pd.read_sql(f"SELECT student_name FROM payments WHERE month='{cm}' AND grade='{cg}'", conn)
-                arrears = all_s[~all_s['name'].isin(paid_s['student_name'].tolist())]
-                if not arrears.empty:
-                    st.table(arrears)
-                else:
-                    st.success("All Paid!")
-        with tab4:
-            st.subheader("Remove Records")
-            dt = st.radio("Type", ["Payments", "Students", "Expenses"])
-            di = st.number_input("ID", min_value=1)
-            if st.button("Delete"):
-                conn.execute(f"DELETE FROM {dt.lower()} WHERE id={di}")
-                conn.commit()
-                st.rerun()
