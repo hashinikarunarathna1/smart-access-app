@@ -9,35 +9,58 @@ st.set_page_config(page_title="Smart Class Pro", page_icon="🎓", layout="wide"
 
 st.markdown("""
     <style>
-    /* ------ DASHBOARD METRICS STYLING ------ */
+    /* ------ DASHBOARD METRICS STYLING (තද නිල් පැහැති පසුබිම සහ සුදු පැහැති අකුරු) ------ */
     div[data-testid="stMetric"] {
-        background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
-        padding: 24px !important; border-radius: 16px !important;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%) !important;
+        padding: 24px !important; 
+        border-radius: 16px !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
         transition: transform 0.2s;
     }
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3) !important;
     }
+    /* කුඩා මාතෘකා සුදු පාට කිරීම */
     div[data-testid="stMetricLabel"] {
-        color: #4a5568 !important; font-size: 14px !important; font-weight: 600 !important; text-transform: uppercase;
+        color: #ffffff !important; 
+        font-size: 14px !important; 
+        font-weight: 700 !important; 
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
     }
+    /* ප්‍රධාන ඉලක්කම්/මුදල් ප්‍රමාණයන් සුදු පාට කිරීම */
     div[data-testid="stMetricValue"] {
-        color: #1a73e8 !important; font-size: 28px !important; font-weight: 700 !important;
+        color: #ffffff !important; 
+        font-size: 32px !important; 
+        font-weight: 800 !important;
+        text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3);
     }
     
-    /* ------ BUTTON STYLING ------ */
+    /* ------ SIDEBAR NAVIGATION BUTTONS ------ */
+    .stSidebar .stButton>button {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #e2e8f0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        font-weight: normal !important;
+    }
+    
+    /* ------ MAIN APP BUTTONS ------ */
     .stButton>button {
         width: 100%; border-radius: 10px; height: 3.5em;
         background: linear-gradient(90deg, #1a73e8 0%, #34a853 100%); 
         color: white !important; font-weight: bold; border: none;
+    }
+    .stButton>button:hover {
+        background: linear-gradient(90deg, #1557b0 0%, #2b843f 100%);
     }
     
     /* ------ RECEIPT STYLING ------ */
     .receipt-container {
         border: 2px dashed #1a73e8; border-radius: 16px; padding: 25px; margin: 20px auto; max-width: 500px;
         font-family: 'Courier New', Courier, monospace; background-color: #f8f9fa;
+        color: #333;
     }
     .receipt-title {
         color: #1a73e8; font-size: 26px; font-weight: bold; text-align: center; border-bottom: 2px dashed #ddd; padding-bottom: 10px; margin-bottom: 15px;
@@ -84,15 +107,13 @@ if not st.session_state['logged_in']:
             else:
                 st.error("වැරදි දත්ත ඇතුළත් කළා!")
 else:
-    # --- 💎 SIDEBAR NAVIGATION (පද්ධතිය 100% ක් වැඩ කරන ලෙස සකසා ඇත) ---
+    # --- SIDEBAR MENU ---
     st.sidebar.title("💎 Smart Class Pro")
     st.sidebar.markdown("### 🛠️ MAIN MENU")
     
-    # Session State එකක් මඟින් තෝරාගත් මෙනුව මතක තබා ගැනීම
     if 'menu_choice' not in st.session_state:
         st.session_state['menu_choice'] = "🚀 Dashboard"
         
-    # එකිනෙකට වෙනස් ලස්සන බොත්තම් 5 ක් සයිඩ්බාර් එකට එකතු කිරීම
     if st.sidebar.button("🚀 Dashboard", key="btn_dash"):
         st.session_state['menu_choice'] = "🚀 Dashboard"
     if st.sidebar.button("📝 Registration", key="btn_reg"):
@@ -126,6 +147,7 @@ else:
         expense = all_exp['amount'].sum() if not all_exp.empty else 0
         net = income - expense
         
+        # මෙතැනින් Metrics කාඩ් ලස්සනට පෙන්වයි (දැන් අකුරු සියල්ල සුදු පැහැතිය)
         m1, m2, m3 = st.columns(3)
         with m1:
             st.metric(label="👥 TOTAL REGISTERED STUDENTS", value=f"{total_students} Students")
