@@ -7,26 +7,57 @@ from datetime import datetime
 # --- 1. CONFIG & STYLING ---
 st.set_page_config(page_title="Smart Class Pro", page_icon="🎓", layout="wide")
 
+# Dashboard UI එක සහ Metrics Cards වඩාත් ආකර්ෂණීය කිරීමට CSS ඇතුළත් කිරීම
 st.markdown("""
     <style>
-    [data-testid="stMetric"] {
-        background-color: rgba(28, 131, 225, 0.1) !important;
-        padding: 20px !important; border-radius: 12px !important;
-        border: 1px solid rgba(28, 131, 225, 0.2);
+    /* Metric Cards Styling */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+        padding: 24px !important; 
+        border-radius: 16px !important;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        transition: transform 0.2s;
     }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    }
+    /* Metric Labels & Values */
+    div[data-testid="stMetricLabel"] {
+        color: #4a5568 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #1a73e8 !important;
+        font-size: 28px !important;
+        font-weight: 700 !important;
+    }
+    /* Common Button Styling */
     .stButton>button {
-        width: 100%; border-radius: 8px; height: 3.5em;
-        background-color: #1a73e8; color: white !important;
+        width: 100%; border-radius: 10px; height: 3.5em;
+        background: linear-gradient(90deg, #1a73e8 0%, #34a853 100%); 
+        color: white !important;
         font-weight: bold; border: none;
+        box-shadow: 0 4px 6px rgba(26, 115, 232, 0.2);
     }
+    .stButton>button:hover {
+        background: linear-gradient(90deg, #1557b0 0%, #2b843f 100%);
+    }
+    /* Receipt Styling */
     .receipt-container {
-        border: 2px solid #1a73e8; border-radius: 20px;
-        padding: 30px; margin: 20px auto; max-width: 600px;
+        border: 2px dashed #1a73e8; border-radius: 16px;
+        padding: 25px; margin: 20px auto; max-width: 500px;
         font-family: 'Courier New', Courier, monospace;
-        background-color: rgba(0, 0, 0, 0.05);
+        background-color: #f8f9fa;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
     .receipt-title {
-        color: #1a73e8; font-size: 28px; font-weight: bold; text-align: center;
+        color: #1a73e8; font-size: 26px; font-weight: bold; text-align: center;
+        border-bottom: 2px dashed #ddd; padding-bottom: 10px; margin-bottom: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -51,7 +82,6 @@ def init_db():
 
 init_db()
 
-# ශ්‍රේණි ලැයිස්තුව (Office Package එකතු කරන ලදී)
 GRADES = ["Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Revision", "Theory", "Online", "Edexcel", "Office Package"]
 
 # --- 3. APP LOGIC ---
@@ -81,9 +111,13 @@ else:
     conn = get_connection()
     months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
-    # --- 🚀 DASHBOARD ---
+    # --- 🚀 DASHBOARD (UPDATED DESIGN) ---
     if choice == "🚀 Dashboard":
-        st.title("System Overview")
+        st.markdown("<h1 style='color: #1a73e8;'>🚀 System Overview & Analytics</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #718096;'>ආයතනයේ වත්මන් තත්ත්වය සහ මූල්‍ය විශ්ලේෂණය මෙතැනින් බලන්න.</p>", unsafe_allow_html=True)
+        st.write("")
+
+        # දත්ත ලබා ගැනීම
         total_students = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         all_pay = pd.read_sql("SELECT amount FROM payments", conn)
         all_exp = pd.read_sql("SELECT amount FROM expenses", conn)
@@ -92,25 +126,41 @@ else:
         expense = all_exp['amount'].sum() if not all_exp.empty else 0
         net = income - expense
         
+        # 3-Column Metrics Card Layout
         m1, m2, m3 = st.columns(3)
-        m1.metric("Total Registered Students", total_students)
-        m2.metric("Total Cash Out", f"Rs. {expense:,.2f}")
-        m3.metric("Net Balance", f"Rs. {net:,.2f}")
+        with m1:
+            st.metric(label="👥 TOTAL REGISTERED STUDENTS", value=f"{total_students} Students")
+        with m2:
+            st.metric(label="💸 TOTAL CASH OUT (EXPENSES)", value=f"Rs. {expense:,.2f}")
+        with m3:
+            # ශේෂය ධන හෝ සෘණ ද යන්න මත වර්ණය වෙනස් කිරීමට (UI එකට ගැළපෙන සේ)
+            st.metric(label="📈 NET BALANCE (PROFIT)", value=f"Rs. {net:,.2f}")
         
+        st.write("")
         st.divider()
-        st.subheader("📅 Monthly Revenue (Student Payments)")
+        st.write("")
+        
+        # මාසික ආදායම් වගුව ලස්සනට පෙන්වීම
+        st.markdown("<h3 style='color: #2d3748;'>📅 Monthly Revenue Summary</h3>", unsafe_allow_html=True)
+        
         if not all_pay.empty:
-            st.table(pd.read_sql("SELECT month, SUM(amount) as Total FROM payments GROUP BY month", conn))
+            df_monthly = pd.read_sql("SELECT month as 'Month', SUM(amount) as 'Total Income (Rs.)' FROM payments GROUP BY month", conn)
+            # වගුවේ පෙනුම සකස් කිරීම
+            st.dataframe(
+                df_monthly.style.format({'Total Income (Rs.)': 'Rs. {:,.2f}'}),
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.info("තවමත් ගෙවීම් දත්ත නැත.")
+            st.info("තවමත් ගෙවීම් දත්ත ඇතුළත් කර නැත.")
 
-    # --- 📝 REGISTRATION (Updated) ---
+    # --- 📝 REGISTRATION ---
     elif choice == "📝 Registration":
         st.title("New Student Registration")
         with st.form("reg_form", clear_on_submit=True):
             name = st.text_input("Student Name")
             school = st.text_input("School")
-            grade = st.selectbox("Grade", GRADES) # Office Package එක මේ ලැයිස්තුවේ ඇත
+            grade = st.selectbox("Grade", GRADES)
             wa = st.text_input("WhatsApp Number")
             if st.form_submit_button("Register"):
                 if name and wa:
